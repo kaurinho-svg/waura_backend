@@ -1,0 +1,19 @@
+[
+  {
+    "id": "p1",
+    "title": "Пальто шерстяное прямого кроя",
+    "brand": "Classic Co",
+    "category": "coat",
+    "gender": "men",
+    "color": "beige",
+    "material": "wool",
+    "price": 89990,
+    "currency": "KZT",
+    "sizes": ["M", "L"],
+    "image_url": "https://example.com/coat.jpg",
+    "product_url": "https://shop.example.com/p1",
+    "store": "ExampleStore",
+    "tags": ["wool", "minimal", "neutral"],
+    "style_tags": ["old_money"]
+  }
+]

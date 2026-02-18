@@ -1,0 +1,14 @@
+[
+  {
+    "title": "Красное платье",
+    "category": "Платья",
+    "tags": ["вечер", "лето", "женский", "красный"],
+    "imagePath": "https://dfcdn.defacto.com.tr/376/D7862AX_25SP_RD256_01_01.jpg"
+  },
+  {
+    "title": "Мужской бомбер",
+    "category": "Куртки",
+    "tags": ["мужской", "бомбер", "осень"],
+    "imagePath": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSLb0EVir5sW5tA4MObd5u0PTz2F6B-3T6XwA&s"
+  }
+]
