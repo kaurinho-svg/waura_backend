@@ -13,6 +13,8 @@ import 'providers/buyer_orders_provider.dart';
 // ✅ добавь
 import 'providers/auth_provider.dart';
 import 'services/auth_storage.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'; // [NEW]
+import 'config/supabase_config.dart'; // [NEW]
 
 // ✅ добавь новые экраны
 import 'screens/start_gate_screen.dart';
@@ -55,6 +57,12 @@ import 'l10n/app_localizations.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await ApiRuntime.init();
+
+  // [NEW] Initialize Supabase
+  await Supabase.initialize(
+    url: SupabaseConfig.url,
+    anonKey: SupabaseConfig.anonKey,
+  );
 
   final catalogProvider = CatalogProvider();
   await catalogProvider.init();

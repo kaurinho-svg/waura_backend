@@ -123,23 +123,33 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
 
     setState(() => _saving = true);
 
-    final catalog = context.read<CatalogProvider>();
-    final item = ClothingItem(
-      id: catalog.newId(),
-      name: name,
-      imagePath: _pickedImage!.path,
-      category: _category ?? 'other',
-      tags: _tags,
-      // We could store color in tags or separate field if model had it
-      // Model has 'colors' list, let's use it
-      colors: _color != null ? [_color!] : [],
-    );
+    try {
+      final catalog = context.read<CatalogProvider>();
+      
+      // Use the wrapper method which handles File creation and upload
+      await catalog.addLocalFileItem(
+        name: name,
+        imagePath: _pickedImage!.path,
+        category: _category ?? 'other',
+        tags: _tags,
+        // color logic can be expanded later if needed
+      );
 
-    catalog.addItem(item);
-
-    setState(() => _saving = false);
-    if (!mounted) return;
-    Navigator.of(context).pop();
+      if (!mounted) return;
+      
+      setState(() => _saving = false);
+      Navigator.of(context).pop();
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.tr('add_clothing_msg_success'))),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error saving item: $e')),
+      );
+    }
   }
 
   void _addTag(String tag) {

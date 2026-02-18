@@ -206,7 +206,7 @@ class _CartItemCard extends StatelessWidget {
             IconButton(
               icon: const Icon(Icons.delete_outline),
               onPressed: () {
-                cart.removeItem(item.key);
+                cart.removeItem(item.id); // Changed key -> id
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text(context.tr('cart_item_removed'))),
                 );
@@ -226,7 +226,7 @@ class _CartItemCard extends StatelessWidget {
           icon: const Icon(Icons.remove_circle_outline),
           iconSize: 20,
           onPressed: item.quantity > 1
-              ? () => cart.updateQuantity(item.key, item.quantity - 1)
+              ? () => cart.updateQuantity(item.id, item.quantity - 1) // Changed key -> id
               : null,
         ),
         Container(
@@ -246,7 +246,7 @@ class _CartItemCard extends StatelessWidget {
           icon: const Icon(Icons.add_circle_outline),
           iconSize: 20,
           onPressed: item.quantity < item.product.stock
-              ? () => cart.updateQuantity(item.key, item.quantity + 1)
+              ? () => cart.updateQuantity(item.id, item.quantity + 1) // Changed key -> id
               : null,
         ),
       ],

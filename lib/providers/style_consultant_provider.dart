@@ -29,27 +29,37 @@ class StyleConsultantProvider with ChangeNotifier {
   Future<void> initialize() async {
     if (_isInitialized) return;
 
+    // Add welcome message immediately so user sees something
+    if (_messages.isEmpty) {
+      _addWelcomeMessage();
+    }
+    
+    // Mark as initialized immediately to show UI
+    _isInitialized = true;
+    notifyListeners();
+
     try {
       _initError = null;
-      // Инициализируем Gemini API
+      _isLoading = true; // Show loading indicator in chat while connecting
+      notifyListeners();
+
+      // Инициализируем Gemini API (Check Status)
       await _geminiService.initialize();
       
       // Check if service actually became available
       if (!_geminiService.isAvailable) {
          _initError = "Backend connection failed";
+         _messages.add(ConsultantMessage.assistant(
+           "⚠️ Backend is sleeping or unavailable. I can still answer, but might be slow or use fallback logic.",
+           source: 'system'
+         ));
       }
-
-      // Добавляем приветственное сообщение
-      if (_messages.isEmpty) {
-        _addWelcomeMessage();
-      }
-
-      _isInitialized = true;
     } catch (e) {
       _initError = e.toString();
-      _isInitialized = true; // Still mark as initialized to show UI
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
-    notifyListeners();
   }
 
   /// Добавить приветственное сообщение

@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/catalog_provider.dart';
+import '../providers/cart_provider.dart'; // [NEW]
 import '../providers/looks_provider.dart';
 import '../providers/marketplace_provider.dart';
 import '../ui/components/premium_card.dart';
@@ -17,6 +18,8 @@ import '../models/store_model.dart';
 import '../l10n/app_localizations.dart'; // [NEW]
 import 'outfit_builder_screen.dart'; // [NEW] Outfit Builder
 
+import '../screens/cart_screen.dart'; // [NEW]
+
 /// VOGUE.AI Style Home Screen - "Your Digital Wardrobe"
 class VogueHomeScreen extends StatefulWidget {
   const VogueHomeScreen({super.key});
@@ -26,15 +29,13 @@ class VogueHomeScreen extends StatefulWidget {
 }
 
 class _VogueHomeScreenState extends State<VogueHomeScreen> {
-  // Replaced Recommendation List with Stores
-
 
   @override
   void initState() {
     super.initState();
-    // Load stores from Marketplace (including user-created ones)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<MarketplaceProvider>().loadMarketplace();
+      context.read<CartProvider>().init(); // Load cart
     });
   }
 
@@ -43,7 +44,8 @@ class _VogueHomeScreenState extends State<VogueHomeScreen> {
     final theme = Theme.of(context);
     final looks = context.watch<LooksProvider>();
     final marketplace = context.watch<MarketplaceProvider>();
-    final stores = marketplace.allStores; // Used active stores
+    final stores = marketplace.allStores;
+    final cart = context.watch<CartProvider>(); // Listen to cart
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -57,10 +59,16 @@ class _VogueHomeScreenState extends State<VogueHomeScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    _getTimeString(),
-                    style: theme.textTheme.bodySmall,
-                  ),
+                   Row(
+                     children: [
+                       Text(
+                        _getTimeString(),
+                        style: theme.textTheme.bodySmall,
+                       ),
+                       const SizedBox(width: 8),
+                     ],
+                   ),
+                  
                   Text(
                     'WAURA',
                     style: GoogleFonts.playfairDisplay(
@@ -69,7 +77,17 @@ class _VogueHomeScreenState extends State<VogueHomeScreen> {
                       letterSpacing: 2,
                     ),
                   ),
-                  // IconButton removed (redundant with Profile tab)
+
+                  // Cart Icon
+                  IconButton(
+                    onPressed: () => Navigator.pushNamed(context, CartScreen.route),
+                    icon: Badge(
+                      isLabelVisible: cart.itemCount > 0,
+                      label: Text('${cart.itemCount}'),
+                      backgroundColor: theme.colorScheme.primary,
+                      child: const Icon(Icons.shopping_bag_outlined),
+                    ),
+                  ),
                 ],
               ),
               

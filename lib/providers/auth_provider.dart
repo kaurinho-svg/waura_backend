@@ -1,29 +1,32 @@
 import 'package:flutter/foundation.dart';
-
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/app_user.dart';
 import '../services/auth_storage.dart';
 
 class AuthProvider extends ChangeNotifier {
-  final AuthStorage _storage;
+  final AuthStorage _storage; // Keep for local flags like 'justRegistered'
+  final SupabaseClient _supabase = Supabase.instance.client;
 
   AppUser? _user;
   bool _isBootstrapped = false;
-
-  // Одноразовый флаг "только что зарегистрировался"
   bool _justRegistered = false;
+  bool _isLoading = false;
 
   AuthProvider(this._storage);
 
   AppUser? get user => _user;
-  bool get isLoggedIn => _user != null;
+  bool get isLoggedIn => _supabase.auth.currentUser != null; // Trust Supabase session
   bool get isBootstrapped => _isBootstrapped;
-
-  /// true => показать "Добро пожаловать" один раз
   bool get justRegistered => _justRegistered;
+  bool get isLoading => _isLoading;
 
+  /// Check for existing session
   Future<void> bootstrap() async {
     try {
-      _user = await _storage.loadUser().timeout(const Duration(seconds: 2));
+      final session = _supabase.auth.currentSession;
+      if (session != null) {
+        await _loadProfile(session.user.id);
+      }
       _justRegistered = await _storage.getJustRegistered();
     } catch (e) {
       debugPrint('Auth bootstrap error: $e');
@@ -33,53 +36,129 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> register(AppUser user) async {
-    _user = user;
-
-    // ВАЖНО: ставим одноразовый флаг в storage
-    _justRegistered = true;
-    await _storage.saveUser(user);
-    await _storage.setJustRegistered(true);
-
+  /// Sign Up: Auth + Profile Creation
+  Future<void> register({
+    required String email,
+    required String password,
+    required String name,
+    required Gender gender,
+    UserRole role = UserRole.buyer,
+  }) async {
+    _isLoading = true;
     notifyListeners();
+
+    try {
+      // 1. Sign Up with Metadata
+      // We pass user data here, and a SQL Trigger (which we will create)
+      // will automatically insert it into the 'profiles' table.
+      // This avoids "Violates RLS policy" errors.
+      final response = await _supabase.auth.signUp(
+        email: email,
+        password: password,
+        data: {
+          'name': name,
+          'gender': gender.name,
+          'role': role.name,
+        },
+      );
+
+      final user = response.user;
+      if (user == null) throw Exception("Registration failed");
+
+      // Note: We do NOT manually insert into 'profiles' anymore.
+      // The SQL Trigger handles it securely.
+
+      // Create local user object for immediate UI update
+      final appUser = AppUser(
+        name: name,
+        email: email,
+        gender: gender,
+        role: role,
+      );
+
+      _user = appUser;
+      _justRegistered = true;
+      await _storage.setJustRegistered(true);
+      
+    } catch (e) {
+      debugPrint('Registration error: $e');
+      rethrow;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Sign In
+  Future<void> login(String email, String password) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final response = await _supabase.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+
+      if (response.user != null) {
+        await _loadProfile(response.user!.id);
+        _justRegistered = false;
+        await _storage.setJustRegistered(false);
+      }
+    } catch (e) {
+      debugPrint('Login error: $e');
+      rethrow;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _loadProfile(String userId) async {
+    try {
+      final data = await _supabase
+          .from('profiles')
+          .select()
+          .eq('id', userId)
+          .single();
+      
+      _user = AppUser.fromJson(data);
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error loading profile: $e');
+    }
   }
 
   Future<void> updateUser(AppUser newUser) async {
-    _user = newUser;
-    await _storage.saveUser(newUser);
+    _isLoading = true;
     notifyListeners();
-  }
+    
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) return;
 
-  /// Временный логин для теста:
-  /// - если в storage уже есть юзер с таким email -> используем его (с правильным name)
-  /// - иначе создаём мок (как раньше)
-  Future<void> loginMock(String email) async {
-    final stored = await _storage.loadUser();
-    if (stored != null &&
-        stored.email.toLowerCase() == email.toLowerCase()) {
-      _user = stored;
-      _justRegistered = false;
-      await _storage.setJustRegistered(false);
+      await _supabase.from('profiles').update({
+        'name': newUser.name,
+        // email is managed by auth, not profile updates usually, but we can store it
+        // gender/role updates if needed
+      }).eq('id', user.id);
+
+      _user = newUser;
+    } catch (e) {
+      debugPrint('Update user error: $e');
+      rethrow;
+    } finally {
+      _isLoading = false;
       notifyListeners();
-      return;
     }
-
-    final guessedName = email.split("@").first;
-    final mock = AppUser(
-      name: guessedName.isEmpty ? "User" : guessedName,
-      email: email,
-      gender: Gender.male,
-      role: UserRole.buyer,
-    );
-
-    _user = mock;
-    _justRegistered = false;
-    await _storage.saveUser(mock);
-    await _storage.setJustRegistered(false);
-    notifyListeners();
   }
 
-  /// Вызывается на Home после первого показа "Добро пожаловать"
+  // Legacy/Mock login (kept for compatibility if needed, else remove)
+  Future<void> loginMock(String email) async {
+     // Deprecated. Use login()
+     throw UnimplementedError("Use real login");
+  }
+
   Future<void> consumeJustRegistered() async {
     if (!_justRegistered) return;
     _justRegistered = false;
@@ -88,9 +167,10 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    await _supabase.auth.signOut();
     _user = null;
     _justRegistered = false;
-    await _storage.clear();
+    // await _storage.clear(); // Don't clear EVERYTHING, maybe just auth flags
     notifyListeners();
   }
 }

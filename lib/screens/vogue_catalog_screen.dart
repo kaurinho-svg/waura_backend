@@ -40,6 +40,17 @@ class _VogueCatalogScreenState extends State<VogueCatalogScreen> {
   final List<String> _categories = ['Все', 'Верх', 'Низ', 'Платья', 'Верхняя одежда'];
 
   @override
+  void initState() {
+    super.initState();
+    if (widget.store == null) {
+      // Load wardrobe from cloud when screen opens
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        context.read<CatalogProvider>().init();
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isStoreMode = widget.store != null;

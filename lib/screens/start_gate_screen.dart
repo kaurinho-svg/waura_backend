@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/seller_provider.dart';
 import '../providers/cart_provider.dart';
+import '../providers/looks_provider.dart'; // [NEW]
 import '../providers/buyer_orders_provider.dart';
 import '../l10n/app_localizations.dart'; // [NEW]
 import 'welcome_screen.dart';
@@ -83,7 +84,8 @@ class _StartGateScreenState extends State<StartGateScreen> with SingleTickerProv
           
           try {
              await Future.wait([
-               cartProvider.init(user.email),
+               cartProvider.init(),
+               context.read<LooksProvider>().load(), // [NEW] Load looks
                buyerOrdersProvider.init(user.email),
              ]).timeout(const Duration(seconds: 3));
           } catch (e) {

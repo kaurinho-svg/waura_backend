@@ -1,7 +1,6 @@
-import 'dart:convert';
-
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:http/http.dart' as http; // For downloading temp images
 
 /// Одна сохранённая примерка
 class SavedLook {
@@ -21,87 +20,143 @@ class SavedLook {
     required this.createdAt,
   });
 
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'userImageUrl': userImageUrl,
-        'clothingImageUrl': clothingImageUrl,
-        'resultImageUrl': resultImageUrl,
-        'prompt': prompt,
-        'createdAt': createdAt.toIso8601String(),
-      };
-
-  factory SavedLook.fromJson(Map<String, dynamic> json) => SavedLook(
-        id: json['id'] as String,
-        userImageUrl: json['userImageUrl'] as String,
-        clothingImageUrl: json['clothingImageUrl'] as String,
-        resultImageUrl: json['resultImageUrl'] as String,
-        prompt: json['prompt'] as String? ?? '',
-        createdAt: DateTime.parse(json['createdAt'] as String),
-      );
+  factory SavedLook.fromMap(Map<String, dynamic> map) {
+    return SavedLook(
+      id: map['id'],
+      userImageUrl: map['user_image_url'] ?? '',
+      clothingImageUrl: map['clothing_image_url'] ?? '',
+      resultImageUrl: map['result_image_url'] ?? '',
+      prompt: map['prompt'] ?? '',
+      createdAt: DateTime.parse(map['created_at']),
+    );
+  }
 }
 
 /// Провайдер для списка сохранённых образов
 class LooksProvider extends ChangeNotifier {
-  static const _storageKey = 'saved_looks_v1';
-
-  final List<SavedLook> _looks = [];
+  final _supabase = Supabase.instance.client;
+  List<SavedLook> _looks = [];
+  bool _isLoading = false;
 
   List<SavedLook> get looks => List.unmodifiable(_looks);
+  bool get isLoading => _isLoading;
 
+  /// Загрузка истории из Supabase
   Future<void> load() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_storageKey);
-    if (raw == null || raw.isEmpty) return;
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) {
+      _looks = [];
+      notifyListeners();
+      return;
+    }
 
     try {
-      final data = jsonDecode(raw) as List<dynamic>;
-      _looks
-        ..clear()
-        ..addAll(
-          data
-              .map((e) => SavedLook.fromJson(e as Map<String, dynamic>))
-              .toList(),
-        );
+      _isLoading = true;
       notifyListeners();
+
+      final response = await _supabase
+          .from('created_looks')
+          .select()
+          .order('created_at', ascending: false);
+
+      _looks = (response as List).map((e) => SavedLook.fromMap(e)).toList();
     } catch (e) {
       debugPrint('Failed to load looks: $e');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
   }
 
-  Future<void> _persist() async {
-    final prefs = await SharedPreferences.getInstance();
-    final data = jsonEncode(_looks.map((e) => e.toJson()).toList());
-    await prefs.setString(_storageKey, data);
-  }
-
+  /// Сохранение образа (Скачивание -> Загрузка в Storage -> Запись в БД)
   Future<void> addLook({
     required String userImageUrl,
     required String clothingImageUrl,
     required String resultImageUrl,
     required String prompt,
   }) async {
-    final look = SavedLook(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      userImageUrl: userImageUrl,
-      clothingImageUrl: clothingImageUrl,
-      resultImageUrl: resultImageUrl,
-      prompt: prompt,
-      createdAt: DateTime.now(),
-    );
-    _looks.insert(0, look); // новые сверху
-    await _persist();
-    notifyListeners();
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) throw Exception('User not logged in');
+
+    try {
+      _isLoading = true;
+      notifyListeners();
+
+      // 1. Download and Upload Images to Supabase Storage
+      // We do this to ensure persistence, as the AI API URLs might be temporary.
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      
+      final persistentUserUrl = await _uploadFromUrl(userImageUrl, '$userId/${timestamp}_user.jpg');
+      final persistentClothingUrl = await _uploadFromUrl(clothingImageUrl, '$userId/${timestamp}_clothing.jpg');
+      final persistentResultUrl = await _uploadFromUrl(resultImageUrl, '$userId/${timestamp}_result.jpg');
+
+      // 2. Insert into Database
+      final response = await _supabase.from('created_looks').insert({
+        'user_id': userId,
+        'user_image_url': persistentUserUrl,
+        'clothing_image_url': persistentClothingUrl,
+        'result_image_url': persistentResultUrl,
+        'prompt': prompt,
+      }).select().single();
+
+      // 3. Update Local State
+      final newLook = SavedLook.fromMap(response);
+      _looks.insert(0, newLook);
+      notifyListeners();
+
+    } catch (e) {
+      debugPrint('Error adding look: $e');
+      rethrow;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Helper: Download from URL -> Upload to Supabase Storage
+  Future<String> _uploadFromUrl(String url, String path) async {
+    try {
+      // If it's already a Supabase URL, just return it (avoid re-uploading if not needed)
+      if (url.contains('supabase')) return url;
+
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode != 200) throw Exception('Failed to download image');
+
+      await _supabase.storage.from('generated_looks').uploadBinary(
+        path,
+        response.bodyBytes,
+        fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true),
+      );
+
+      return _supabase.storage.from('generated_looks').getPublicUrl(path);
+    } catch (e) {
+      debugPrint('Upload failed for $url: $e');
+      // Fallback: return original URL if upload fails (better than nothing)
+      return url; 
+    }
   }
 
   Future<void> deleteLook(String id) async {
-    _looks.removeWhere((e) => e.id == id);
-    await _persist();
-    notifyListeners();
+    try {
+      await _supabase.from('created_looks').delete().eq('id', id);
+      _looks.removeWhere((e) => e.id == id);
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error deleting look: $e');
+      rethrow;
+    }
   }
 
   Future<void> clearAll() async {
-    _looks.clear();
-    await _persist();
-    notifyListeners();
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) return;
+
+    try {
+      await _supabase.from('created_looks').delete().eq('user_id', userId);
+      _looks.clear();
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error clearing looks: $e');
+    }
   }
 }

@@ -126,12 +126,12 @@ class _StyleConsultantScreenState extends State<StyleConsultantScreen> {
     final theme = Theme.of(context);
     final goldColor = theme.colorScheme.primary;
 
-    if (!_isInitialized) {
-      return LuxeScaffold(
-        title: 'AI Stylist',
-        child: const Center(child: CircularProgressIndicator()),
-      );
-    }
+    // if (!_isInitialized) {
+    //   return LuxeScaffold(
+    //     title: 'AI Stylist',
+    //     child: const Center(child: CircularProgressIndicator()),
+    //   );
+    // }
 
     return LuxeScaffold(
       title: context.tr('consultant_title'),
