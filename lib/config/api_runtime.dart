@@ -3,31 +3,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'api_config.dart';
 
 class ApiRuntime {
-  static const _kKey = 'api_base_url';
+  // Теперь просто проксируем статический URL из конфига
+  static String get baseUrl => ApiConfig.defaultBaseUrl;
 
-  static late SharedPreferences _prefs;
+  // Метод init больше ничего не делает, но оставим пустым, чтобы не ломать main.dart сразу
+  static Future<void> init() async {}
 
-  static String _baseUrl = ApiConfig.defaultBaseUrl;
-
-  /// Текущий URL, который используют ВСЕ запросы приложения
-  static String get baseUrl => _baseUrl;
-
-  /// Дефолтный URL (для первого запуска), зависит от платформы
-  static String get defaultBaseUrl => ApiConfig.defaultBaseUrl;
-
-  /// Инициализация при старте приложения
-  static Future<void> init() async {
-    _prefs = await SharedPreferences.getInstance();
-    _baseUrl = _prefs.getString(_kKey) ?? ApiConfig.defaultBaseUrl;
-  }
-
-  /// Сохранить новый URL из настроек
-  static Future<void> setBaseUrl(String url) async {
-    _baseUrl = url.trim();
-    await _prefs.setString(_kKey, _baseUrl);
-  }
-
-  static Future<void> resetToDefault() async {
-    await setBaseUrl(ApiConfig.defaultBaseUrl);
-  }
+  // Методы для смены URL больше не нужны, но можно оставить заглушки или удалить
+  static Future<void> setBaseUrl(String url) async {}
+  static Future<void> resetToDefault() async {}
 }

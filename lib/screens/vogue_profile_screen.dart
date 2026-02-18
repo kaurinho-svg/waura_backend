@@ -123,15 +123,7 @@ class VogueProfileScreen extends StatelessWidget {
 
               // ... (rest of the list)
               
-              // API Settings
-              const SizedBox(height: 50), // Added spacing to prevent overlap with Help
-              _MenuItem(
-                icon: Icons.dns_outlined,
-                title: 'API Settings', // Ideally localized too, but let's say technical
-                onTap: () {
-                  Navigator.pushNamed(context, '/api-settings');
-                },
-              ),
+              // API Settings removed (Cloud only)
               const SizedBox(height: 12),
               
               const SizedBox(height: 32),

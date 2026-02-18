@@ -36,7 +36,7 @@ import 'providers/style_consultant_provider.dart';
 import 'providers/favorites_provider.dart'; // ✅
 
 import 'config/api_runtime.dart';
-import 'screens/api_settings_screen.dart';
+// import 'screens/api_settings_screen.dart'; // Removed
 
 // Seller screens
 import 'screens/vogue_seller_home_screen.dart'; // [NEW]
@@ -133,7 +133,7 @@ class OutfitApp extends StatelessWidget {
             StoreCatalogScreen.route: (_) => const StoreCatalogScreen(),
             VogueTryOnScreen.route: (context) => const VogueTryOnScreen(),
             MyLooksScreen.route: (_) => const MyLooksScreen(),
-            ApiSettingsScreen.route: (_) => const ApiSettingsScreen(),
+            // ApiSettingsScreen.route: (_) => const ApiSettingsScreen(), // Removed
             BuyerOrdersScreen.route: (_) => const BuyerOrdersScreen(),
             StyleConsultantScreen.route: (_) => const StyleConsultantScreen(),
             OutfitBuilderScreen.route: (_) => const OutfitBuilderScreen(),
