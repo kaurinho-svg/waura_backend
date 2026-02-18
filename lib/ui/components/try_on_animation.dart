@@ -117,7 +117,7 @@ class _TryOnAnimationOverlayState extends State<TryOnAnimationOverlay>
                       ),
                       const SizedBox(height: 16),
                       const Text(
-                        "Создаем магию...",
+                        "Надеваем одежду...",
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 16,
