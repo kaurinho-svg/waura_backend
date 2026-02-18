@@ -46,11 +46,15 @@ class GeminiService {
     List<ConsultantMessage> history = const [],
   }) async {
     if (!_isInitialized) {
-      return ConsultantResponse.fallback(
-        'Backend сервер недоступен.\n'
-        'Ошибка: ${_lastError ?? "Неизвестно"}\n\n'
-        'Убедитесь, что сервер запущен: python -m app.main',
-      );
+      // Пытаемся инициализировать снова (если сервер проснулся)
+      await initialize();
+      if (!_isInitialized) {
+        return ConsultantResponse.fallback(
+          'Backend сервер недоступен.\n'
+          'Ошибка: ${_lastError ?? "Неизвестно"}\n\n'
+          'Попробуйте еще раз через минуту.',
+        );
+      }
     }
 
     return await _api.askConsultant(
@@ -74,11 +78,13 @@ class GeminiService {
     List<ConsultantMessage> history = const [],
   }) async {
     if (!_isInitialized) {
-      return ConsultantResponse.fallback(
-        'Backend сервер недоступен.\n'
-        'Ошибка: ${_lastError ?? "Неизвестно"}\n\n'
-        'Убедитесь, что сервер запущен: python -m app.main',
-      );
+      await initialize();
+      if (!_isInitialized) {
+        return ConsultantResponse.fallback(
+          'Backend сервер недоступен.\n'
+          'Ошибка: ${_lastError ?? "Неизвестно"}',
+        );
+      }
     }
 
     return await _api.askConsultantWithImage(

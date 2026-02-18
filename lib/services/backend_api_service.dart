@@ -22,7 +22,7 @@ class BackendApiService {
       print('📡 Checking backend status at: $baseUrl/api/v1/consultant/status');
       final response = await http.get(
         Uri.parse('$baseUrl/api/v1/consultant/status'),
-      ).timeout(const Duration(seconds: 10));  // Increased timeout
+      ).timeout(const Duration(seconds: 60));  // Increased for Render Cold Start
       
       print('📥 Status Code: ${response.statusCode}');
       print('📄 Response Body: ${response.body}');
@@ -77,7 +77,7 @@ class BackendApiService {
           'history': history,
           'language': language,
         }),
-      ).timeout(const Duration(seconds: 60));  // Increased timeout for AI requests
+      ).timeout(const Duration(seconds: 120));  // Increased for AI + Cold Start
       
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);

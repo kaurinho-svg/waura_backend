@@ -1350,7 +1350,7 @@ class _SearchApi {
       'num': num.toString(),
     });
 
-    final r = await http.get(uri).timeout(const Duration(seconds: 25));
+    final r = await http.get(uri).timeout(const Duration(seconds: 60));
     if (r.statusCode != 200) {
       throw Exception('HTTP ${r.statusCode}: ${r.body}');
     }
@@ -1368,7 +1368,7 @@ class _SearchApi {
       'page_size': pageSize.toString(),
     });
 
-    final r = await http.get(uri).timeout(const Duration(seconds: 25));
+    final r = await http.get(uri).timeout(const Duration(seconds: 60));
 
     if (r.statusCode == 404) {
       return {
