@@ -152,19 +152,18 @@ class NanoBananaService:
                 category_instruction = "Replace the entire outfit (full body)."
 
             prompt_instruction = (
-                f"{category_instruction} "
-                f"The person in the first image is wearing the clothing from the second image. "
-                f"User instructions: {final_prompt}. "
-                f"Preserve exact body proportions, face, and identity. "
-                f"Photorealistic, natural fit. High Definition, 4K."
+                f"VIRTUAL TRY-ON: Keep the EXACT same person from image 1 — same face, body shape, skin, hair, pose, and background. DO NOT replace the person. "
+                f"TASK: Dress this exact person in the garment from image 2. {category_instruction} "
+                f"Preserve all body proportions. Photorealistic clothing fit, natural draping. "
+                f"Extra: {final_prompt}."
             )
 
             # Nano Banana payload
             nano_payload = {
                 "image_urls": [user_image_url, clean_clothing_url],
                 "prompt": prompt_instruction,
-                "image_guidance_scale": 2.0,
-                "prompt_guidance_scale": 7.0
+                "image_guidance_scale": 3.5,  # Increased: forces model to follow input images (prevents hallucinating a new person)
+                "prompt_guidance_scale": 7.5
             }
             
             print(f"DEBUG: Nano Banana PRO Payload: prompt={prompt_instruction[:50]}...")
@@ -234,18 +233,17 @@ class NanoBananaService:
                 category_instruction = "Replace the entire outfit (full body)."
 
             prompt_instruction = (
-                f"{category_instruction} "
-                f"The person in the first image is wearing the clothing from the second image. "
-                f"User instructions: {final_prompt}. "
-                f"Preserve exact body proportions, face, and identity. "
-                f"Photorealistic, natural fit. High Definition, 4K."
+                f"VIRTUAL TRY-ON: Keep the EXACT same person from image 1 — same face, body shape, skin, hair, pose, and background. DO NOT replace the person. "
+                f"TASK: Dress this exact person in the garment from image 2. {category_instruction} "
+                f"Preserve all body proportions. Photorealistic clothing fit, natural draping, 4K quality. "
+                f"Extra: {final_prompt}."
             )
 
             nano_payload = {
                 "image_urls": [user_image_url, clothing_image_url],
                 "prompt": prompt_instruction,
-                "image_guidance_scale": 2.0,
-                "prompt_guidance_scale": 7.0
+                "image_guidance_scale": 3.5,  # Increased: forces model to follow input images
+                "prompt_guidance_scale": 7.5
             }
             
             print(f"DEBUG: Calling {model_id_pro}...")
