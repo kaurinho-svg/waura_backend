@@ -115,8 +115,14 @@ class _InspirationFeedScreenState extends State<InspirationFeedScreen> {
            _isLoading = false;
          });
          
+         String msg = context.tr('inspiration_offline_msg');
+         final eStr = e.toString();
+         if (eStr.contains('502') || eStr.contains('503') || eStr.contains('Timeout')) {
+           msg = "${context.tr('inspiration_offline_msg')} (Server waking up)";
+         }
+
          ScaffoldMessenger.of(context).showSnackBar(
-           SnackBar(content: Text(context.tr('inspiration_offline_msg')))
+           SnackBar(content: Text(msg))
          );
       }
     }
@@ -266,19 +272,23 @@ class _InspirationFeedScreenState extends State<InspirationFeedScreen> {
               ? const Center(child: CircularProgressIndicator(color: Colors.black))
               : _items.isEmpty 
                   ? Center(child: Text(context.tr('inspiration_empty')))
-                  : GridView.builder(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        childAspectRatio: 0.65, 
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 12,
+                  : RefreshIndicator(
+                      onRefresh: () => _loadStyles(customQuery: _searchController.text.isNotEmpty ? _searchController.text : null),
+                      child: GridView.builder(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                        physics: const AlwaysScrollableScrollPhysics(), // Ensure scroll for refresh
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          childAspectRatio: 0.65, 
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                        ),
+                        itemCount: _items.length,
+                        itemBuilder: (context, index) {
+                          final item = _items[index];
+                          return _StyleCard(item: item);
+                        },
                       ),
-                      itemCount: _items.length,
-                      itemBuilder: (context, index) {
-                        final item = _items[index];
-                        return _StyleCard(item: item);
-                      },
                     ),
           ),
         ],

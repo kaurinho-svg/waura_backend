@@ -185,7 +185,7 @@
     "inspiration_gender_f": "Ж",
     "inspiration_search_hint": "Найти образ (например, \"Красное платье\")...",
     "inspiration_empty": "Нет образов",
-    "inspiration_offline_msg": "Интернет поиск недоступен. Показаны оффлайн данные.",
+    "inspiration_offline_msg": "Не удалось подключиться к серверу AI. Используем демо-режим.",
     "inspiration_shop_look": "Найти похожее",
     "seller_order_address": "Адрес",
     "seller_order_items": "Товары",

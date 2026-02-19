@@ -69,6 +69,7 @@ class NanoBananaApi {
     required String style_prompt,
     String? category, // "upper_body", "dresses", "lower_body"
     bool with_logs = false,
+    bool is_premium = false, // [NEW] Pass premium flag for model selection
   }) async {
     final resp = await _client.post(
       _uri("/nano-banana/edit"),
@@ -79,6 +80,7 @@ class NanoBananaApi {
         "style_prompt": style_prompt,
         "category": category,
         "with_logs": with_logs,
+        "is_premium": is_premium, // [NEW]
       }),
     ).timeout(const Duration(minutes: 5));
 

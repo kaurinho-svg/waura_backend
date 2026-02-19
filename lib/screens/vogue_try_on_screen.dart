@@ -14,7 +14,10 @@ import '../ui/components/premium_card.dart';
 import '../ui/components/section_header.dart';
 import '../ui/components/action_button.dart';
 import '../ui/components/try_on_animation.dart'; 
-import '../l10n/app_localizations.dart'; // [NEW] 
+import '../ui/components/try_on_animation.dart'; 
+import '../l10n/app_localizations.dart'; 
+import '../providers/auth_provider.dart'; // [NEW]
+import 'premium_paywall_screen.dart'; // [NEW] 
 
 /// VOGUE.AI Style Try-On Screen
 class VogueTryOnScreen extends StatefulWidget {
@@ -132,6 +135,14 @@ class _VogueTryOnScreenState extends State<VogueTryOnScreen> {
   }
 
   Future<void> _tryOn() async {
+    final user = context.read<AuthProvider>().user;
+    final isPremium = user?.isPremium ?? false;
+
+    if (_isVideoMode && !isPremium) {
+       _showPaywall();
+       return;
+    }
+
     if (_userImage == null || _clothingImage == null) {
       setState(() => _errorText = context.tr('try_on_error_select_both'));
       return;
@@ -153,18 +164,19 @@ class _VogueTryOnScreenState extends State<VogueTryOnScreen> {
             ? 'Hyper-realistic virtual try-on. The person in the first image is wearing the exact clothing item(s) shown in the second image. Seamless fit, natural lighting. The clothing texture from the reference is preserved. Maintain the person\'s identity.' 
             : _promptCtrl.text.trim();
 
-      // 2. Photo Mode: Use Seedream for static image
+      // 2. Photo Mode: Use Nano Banana (PRO for Premium users!)
       if (!_isVideoMode) {
         final result = await _api.edit(
           user_image_url: userUrl,
           clothing_image_url: clothingUrl,
           style_prompt: userPrompt,
           category: _selectedCategory,
+          is_premium: isPremium, // [NEW] PRO model for Premium users
         );
 
         final staticUrl = _api.extractResultImageUrl(result);
         if (staticUrl == null) throw Exception('Не удалось создать образ (нет картинки)');
-
+        
         if (!mounted) return;
         setState(() {
           _resultUrl = staticUrl;
@@ -174,7 +186,7 @@ class _VogueTryOnScreenState extends State<VogueTryOnScreen> {
         return;
       }
 
-      // 3. Video Mode: Direct video try-on using Kling
+      // 3. Video Mode: Direct video try-on using Kling (PREMIUM ONLY)
       if (!mounted) return;
       setState(() {
         _loadingMessage = context.tr('try_on_step_2'); // "Generating video..."
@@ -219,6 +231,15 @@ class _VogueTryOnScreenState extends State<VogueTryOnScreen> {
         _loadingMessage = null;
       });
     }
+  }
+
+  void _showPaywall() {
+    Navigator.pushNamed(context, PremiumPaywallScreen.route).then((value) {
+       // value == true if purchase successful.
+       // The AuthProvider should already be updated. 
+       // We can force a rebuild or just check context.read<AuthProvider>().user.isPremium
+       setState(() {}); // Rebuild to remove locks if premium purchased
+    });
   }
 
   Future<void> _saveResult() async {
@@ -338,21 +359,26 @@ class _VogueTryOnScreenState extends State<VogueTryOnScreen> {
                   const SizedBox(height: 24),
                   
                   // Mode Switcher (Photo / Video)
-                  Center(
-                      child: Container(
-                          decoration: BoxDecoration(
-                              color: theme.colorScheme.surfaceContainerHighest,
-                              borderRadius: BorderRadius.circular(30),
-                          ),
-                          padding: const EdgeInsets.all(4),
-                          child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                  _buildModeBtn(theme, context.tr('try_on_mode_photo'), false),
-                                  _buildModeBtn(theme, context.tr('try_on_mode_video'), true),
-                              ],
-                          ),
-                      ),
+                  Consumer<AuthProvider>(
+                    builder: (context, auth, _) {
+                      final isPremium = auth.user?.isPremium ?? false;
+                      return Center(
+                        child: Container(
+                            decoration: BoxDecoration(
+                                color: theme.colorScheme.surfaceContainerHighest,
+                                borderRadius: BorderRadius.circular(30),
+                            ),
+                            padding: const EdgeInsets.all(4),
+                            child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                    _buildModeBtn(theme, context.tr('try_on_mode_photo'), false, false),
+                                    _buildModeBtn(theme, context.tr('try_on_mode_video'), true, !isPremium),
+                                ],
+                            ),
+                        ),
+                      );
+                    }
                   ),
                   
                   const SizedBox(height: 24),
@@ -552,13 +578,19 @@ class _VogueTryOnScreenState extends State<VogueTryOnScreen> {
     );
   }
   
-  Widget _buildModeBtn(ThemeData theme, String text, bool isVideo) {
+  Widget _buildModeBtn(ThemeData theme, String text, bool isVideo, bool isLocked) {
       final isSelected = _isVideoMode == isVideo;
       return GestureDetector(
-          onTap: () => setState(() { 
-              _isVideoMode = isVideo; 
-              // _resetResults(); // Keep results when switching modes!
-          }),
+          onTap: () {
+             if (isLocked) {
+                 _showPaywall();
+                 return;
+             }
+             setState(() { 
+                _isVideoMode = isVideo; 
+                // _resetResults(); // Keep results when switching modes!
+             });
+          },
           child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
@@ -569,12 +601,21 @@ class _VogueTryOnScreenState extends State<VogueTryOnScreen> {
                       BoxShadow(color: theme.colorScheme.primary.withOpacity(0.3), blurRadius: 8, spreadRadius: 1)
                   ] : [],
               ),
-              child: Text(
-                  text,
-                  style: theme.textTheme.labelLarge?.copyWith(
-                      color: isSelected ? theme.colorScheme.onPrimary : theme.colorScheme.onSurfaceVariant,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                      text,
+                      style: theme.textTheme.labelLarge?.copyWith(
+                          color: isSelected ? theme.colorScheme.onPrimary : theme.colorScheme.onSurfaceVariant,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      ),
                   ),
+                  if (isLocked) ...[
+                      const SizedBox(width: 8),
+                      Icon(Icons.lock, size: 14, color: theme.colorScheme.onSurfaceVariant),
+                  ],
+                ],
               ),
           ),
       );

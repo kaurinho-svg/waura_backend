@@ -159,6 +159,30 @@ class AuthProvider extends ChangeNotifier {
      throw UnimplementedError("Use real login");
   }
 
+  // MOCK: Upgrade to Premium
+  Future<void> upgradeToPremiumMock() async {
+    final user = _user;
+    if (user == null) return;
+    
+    // In real app: Call Backend API -> Stripe/RevenueCat -> Webhook -> Supabase -> 'is_premium' = TRUE
+    // Here: Update Supabase directly (if RLS allows) OR just update local state.
+    
+    // Let's try to update profile directly. If it fails (RLS), just update local memory.
+    try {
+      await _supabase.from('profiles').update({
+        'is_premium': true
+      }).eq('id', _supabase.auth.currentUser!.id);
+      
+      _user = user.copyWith(isPremium: true);
+      notifyListeners();
+    } catch (e) {
+      debugPrint("Could not update DB for premium (RLS?): $e");
+      // Fallback: local only for demo
+      _user = user.copyWith(isPremium: true);
+      notifyListeners();
+    }
+  }
+
   Future<void> consumeJustRegistered() async {
     if (!_justRegistered) return;
     _justRegistered = false;

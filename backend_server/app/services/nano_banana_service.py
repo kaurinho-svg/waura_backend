@@ -48,10 +48,10 @@ class NanoBananaService:
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"upload_to_fal failed: {e}")
 
-    async def edit(self, user_image_url: str, clothing_image_url: str, prompt: str, category: str = None) -> Dict[str, Any]:
+    async def edit(self, user_image_url: str, clothing_image_url: str, prompt: str, category: str = None, is_premium: bool = False) -> Dict[str, Any]:
         """
-        Вызывает fal-ai/idm-vton.
-        Используем IDM-VTON для виртуальной примерки.
+        Virtual Try-On using Nano Banana.
+        is_premium=True uses Nano Banana PRO for higher quality results.
         """
         if not self.fal_key:
             raise HTTPException(status_code=500, detail="FAL_KEY is not set in environment")
@@ -138,12 +138,10 @@ class NanoBananaService:
         clean_clothing_url = clothing_image_url
         
         try:
-            # SWITCHING TO NANO BANANA (User Request)
-            # Nano Banana is more stable for proportion preservation
-            
-            model_id = "fal-ai/nano-banana/edit"
-            print(f"DEBUG: MagicMirror calling {model_id}...")
-            
+            # Choose model based on premium status
+            model_id = "fal-ai/nano-banana-pro" if is_premium else "fal-ai/nano-banana/edit"
+            print(f"DEBUG: MagicMirror calling {model_id} (Premium={is_premium})...")
+
             # Determine specific instruction based on category
             category_instruction = ""
             if target_category == "upper_body":
@@ -158,22 +156,31 @@ class NanoBananaService:
                 f"The person in the first image is wearing the clothing from the second image. "
                 f"User instructions: {final_prompt}. "
                 f"Preserve exact body proportions, face, and identity. "
-                f"Photorealistic, natural fit."
+                f"Photorealistic, natural fit. High Definition, 4K."
             )
 
-            # Nano Banana payload with optimized parameters
+            # Nano Banana payload
             nano_payload = {
                 "image_urls": [user_image_url, clean_clothing_url],
                 "prompt": prompt_instruction,
-                "image_guidance_scale": 2.0,  # Balance between proportion preservation and clothing fit
+                "image_guidance_scale": 2.0,
                 "prompt_guidance_scale": 7.0
             }
             
-            print(f"DEBUG: Nano Banana Payload: prompt={prompt_instruction[:50]}...")
+            print(f"DEBUG: Nano Banana PRO Payload: prompt={prompt_instruction[:50]}...")
             
-            # We use fal_client.run which handles the async wait
-            result = fal_client.run(model_id, arguments=nano_payload)
-            return result
+            try:
+                result = fal_client.run(model_id, arguments=nano_payload)
+                return result
+            except Exception as e:
+                if is_premium:
+                    print(f"WARNING: Nano Banana PRO failed ({e}). Falling back to standard...")
+                    # Retry with standard if PRO fails
+                    nano_payload_fallback = nano_payload.copy()
+                    result = fal_client.run("fal-ai/nano-banana/edit", arguments=nano_payload_fallback)
+                    return result
+                else:
+                    raise
 
         except Exception as e:
             print(f"Seedream Engine Error: {e}")
@@ -209,15 +216,50 @@ class NanoBananaService:
 
         try:
             # Step 1: Use standard edit() method for static try-on (better proportion handling)
-            print("DEBUG: Step 1 - Using standard edit() method for try-on...")
+            print("DEBUG: Step 1 - Using Nano Banana PRO for video base (Premium)...")
             
-            # Use the existing edit() method which has proven to work better
-            edit_result = await self.edit(
-                user_image_url=user_image_url,
-                clothing_image_url=clothing_image_url,
-                prompt=final_prompt,  # Fixed: was style_prompt, should be prompt
-                category=target_category
+            # Using Nano Banana PRO model explicitly for video generation base
+            # to ensure higher quality input for Kling
+            model_id_pro = "fal-ai/nano-banana-pro" 
+            
+            # Reconstruct payload for Pro model
+            # Note: Pro model might have slightly different params, but generally compatible
+            
+            category_instruction = ""
+            if target_category == "upper_body":
+                category_instruction = "Replace ONLY the upper body clothing (tops, shirts, jackets). Keep the lower body (pants/skirt) unchanged."
+            elif target_category == "lower_body":
+                category_instruction = "Replace ONLY the lower body clothing (pants, skirts, shorts). Keep the upper body unchanged."
+            else:
+                category_instruction = "Replace the entire outfit (full body)."
+
+            prompt_instruction = (
+                f"{category_instruction} "
+                f"The person in the first image is wearing the clothing from the second image. "
+                f"User instructions: {final_prompt}. "
+                f"Preserve exact body proportions, face, and identity. "
+                f"Photorealistic, natural fit. High Definition, 4K."
             )
+
+            nano_payload = {
+                "image_urls": [user_image_url, clothing_image_url],
+                "prompt": prompt_instruction,
+                "image_guidance_scale": 2.0,
+                "prompt_guidance_scale": 7.0
+            }
+            
+            print(f"DEBUG: Calling {model_id_pro}...")
+            try:
+                edit_result = fal_client.run(model_id_pro, arguments=nano_payload)
+            except Exception as pro_error:
+                print(f"WARNING: Pro model failed ({pro_error}), falling back to standard...")
+                # Fallback to standard edit if Pro fails (e.g. invalid ID or access)
+                edit_result = await self.edit(
+                    user_image_url=user_image_url,
+                    clothing_image_url=clothing_image_url,
+                    prompt=final_prompt,
+                    category=target_category
+                )
             
             # Extract static image URL from edit result
             static_url = None
@@ -229,7 +271,7 @@ class NanoBananaService:
             if not static_url:
                 raise Exception("Edit method did not return image URL")
             
-            print(f"DEBUG: Seedream result: {static_url[:50]}...")
+            print(f"DEBUG: Pro/Base result: {static_url[:50]}...")
             
             # Step 2: Animate with Kling
             print("DEBUG: Step 2 - Kling animation...")

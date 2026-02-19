@@ -9,6 +9,9 @@ class AppUser {
   
   // Seller-specific fields (optional)
   final List<String> storeIds; // List of store IDs owned by seller (supports multiple stores)
+  
+  // Premium Status
+  final bool isPremium;
 
   const AppUser({
     required this.name,
@@ -16,6 +19,7 @@ class AppUser {
     required this.gender,
     required this.role,
     this.storeIds = const [],
+    this.isPremium = false,
   });
 
   Map<String, dynamic> toJson() => {
@@ -24,6 +28,7 @@ class AppUser {
         "gender": gender.name,
         "role": role.name,
         "storeIds": storeIds,
+        "is_premium": isPremium,
       };
 
   static AppUser fromJson(Map<String, dynamic> json) {
@@ -36,6 +41,7 @@ class AppUser {
       gender: Gender.values.byName(genderStr),
       role: UserRole.values.byName(roleStr),
       storeIds: (json["storeIds"] as List?)?.cast<String>() ?? [],
+      isPremium: (json["is_premium"] as bool?) ?? false,
     );
   }
   
@@ -52,6 +58,7 @@ class AppUser {
     Gender? gender,
     UserRole? role,
     List<String>? storeIds,
+    bool? isPremium,
   }) {
     return AppUser(
       name: name ?? this.name,
@@ -59,6 +66,7 @@ class AppUser {
       gender: gender ?? this.gender,
       role: role ?? this.role,
       storeIds: storeIds ?? this.storeIds,
+      isPremium: isPremium ?? this.isPremium,
     );
   }
 }

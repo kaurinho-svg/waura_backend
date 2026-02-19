@@ -33,6 +33,7 @@ import 'screens/buyer_orders_screen.dart';
 import 'screens/style_consultant_screen.dart';
 import 'screens/outfit_builder_screen.dart';
 import 'screens/inspiration_feed_screen.dart';
+import 'screens/premium_paywall_screen.dart'; // [NEW]
 
 import 'providers/style_consultant_provider.dart';
 import 'providers/favorites_provider.dart'; // ✅
@@ -146,6 +147,7 @@ class OutfitApp extends StatelessWidget {
             StyleConsultantScreen.route: (_) => const StyleConsultantScreen(),
             OutfitBuilderScreen.route: (_) => const OutfitBuilderScreen(),
             InspirationFeedScreen.route: (_) => const InspirationFeedScreen(),
+            PremiumPaywallScreen.route: (_) => const PremiumPaywallScreen(), // [NEW]
             '/vogue-seller/home': (_) => const VogueSellerHomeScreen(),
             '/vogue-seller/products': (_) => const VogueSellerProductsScreen(),
             '/vogue-seller/orders': (_) => const VogueSellerOrdersScreen(),

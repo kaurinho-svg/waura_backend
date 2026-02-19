@@ -14,6 +14,7 @@ class NanoBananaEditRequest(BaseModel):
     clothing_image_url: str
     prompt: Optional[str] = None
     category: Optional[str] = None # "upper_body", "lower_body", "dresses"
+    is_premium: Optional[bool] = False # [NEW] Premium users get Nano Banana PRO
 
 
 @router.post("/nano-banana/upload-temp")
@@ -40,7 +41,8 @@ async def edit(req: NanoBananaEditRequest):
         user_image_url=req.user_image_url,
         clothing_image_url=req.clothing_image_url,
         prompt=final_prompt,
-        category=req.category
+        category=req.category,
+        is_premium=req.is_premium or False
     )
     return result
 
