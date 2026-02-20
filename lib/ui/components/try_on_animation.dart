@@ -107,17 +107,35 @@ class _TryOnAnimationOverlayState extends State<TryOnAnimationOverlay>
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      // Clothes hanger icon
                       const Icon(
-                        Icons.auto_fix_high, 
-                        color: Color(0xFFC9A66B), // Gold
+                        Icons.checkroom,
+                        color: Color(0xFFC9A66B),
                         size: 80,
                         shadows: [
-                          BoxShadow(color: Color(0xFFC9A66B), blurRadius: 20, spreadRadius: 5),
+                          BoxShadow(
+                            color: Color(0xFFC9A66B),
+                            blurRadius: 24,
+                            spreadRadius: 6,
+                          ),
                         ],
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 8),
+                      // Cycling clothing emoji
+                      AnimatedBuilder(
+                        animation: _pulseController,
+                        builder: (ctx, _) {
+                          final items = ['👗', '👔', '👕', '👖', '🧥'];
+                          final idx = (_pulseController.value * items.length).floor() % items.length;
+                          return Text(
+                            items[idx],
+                            style: const TextStyle(fontSize: 28),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 12),
                       const Text(
-                        "Надеваем одежду...",
+                        'Надеваем одежду...',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 16,

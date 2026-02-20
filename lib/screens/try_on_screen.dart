@@ -131,7 +131,6 @@ class _TryOnScreenState extends State<TryOnScreen> {
         user_image_url: userUrl,
         clothing_image_url: clothingUrl,
         style_prompt: _promptCtrl.text.trim(),
-        category: null, // Let backend decide or add UI for it if needed
       );
 
       final result = _api.extractResultImageUrl(rawResult);

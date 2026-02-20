@@ -255,20 +255,19 @@ class _VogueTryOnScreenState extends State<VogueTryOnScreen> {
   }
 
   Future<void> _saveResult() async {
-    // TODO: Handle Video Saving
     if ((!_isVideoMode && _resultUrl == null) || (_isVideoMode && _resultVideoUrl == null)) return;
     if (_userImage == null || _clothingImage == null) return;
 
     try {
       final lookProvider = context.read<LooksProvider>();
-      
+
       final userUrl = await _api.uploadTemp(_userImage!);
       final clothingUrl = await _api.uploadTemp(_clothingImage!);
-      
+
       await lookProvider.addLook(
         userImageUrl: userUrl,
         clothingImageUrl: clothingUrl,
-        resultImageUrl: _resultUrl!,
+        resultImageUrl: _isVideoMode ? _resultVideoUrl! : _resultUrl!,
         prompt: _isVideoMode ? 'Video Try-On' : 'Virtual Try-On',
       );
 
@@ -449,7 +448,7 @@ class _VogueTryOnScreenState extends State<VogueTryOnScreen> {
                   Consumer<AuthProvider>(
                     builder: (context, auth, _) {
                       final credits = auth.user?.tryOnCredits ?? 0;
-                      final costIcon = _isVideoMode ? '🎬 -10' : '📷 -2';
+                      final costIcon = _isVideoMode ? 'Видео: 10 кредитов' : 'Фото: 2 кредита';
                       final isLow = credits < (_isVideoMode ? 10 : 2);
                       return Center(
                         child: Container(
