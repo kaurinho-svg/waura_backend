@@ -50,8 +50,7 @@ class NanoBananaService:
 
     async def edit(self, user_image_url: str, clothing_image_url: str, prompt: str, category: str = None, is_premium: bool = False) -> Dict[str, Any]:
         """
-        Virtual Try-On using Nano Banana.
-        is_premium=True uses Nano Banana PRO for higher quality results.
+        Virtual Try-On using Nano Banana PRO.
         """
         if not self.fal_key:
             raise HTTPException(status_code=500, detail="FAL_KEY is not set in environment")
@@ -59,140 +58,47 @@ class NanoBananaService:
         if not user_image_url or not clothing_image_url:
             raise HTTPException(status_code=400, detail="Both image urls are required")
 
-        # Определяем категорию и переводим промпт на английский (модель лучше понимает его)
-        # Если категория передана явно (из frontend), используем её
-        # Иначе пытаемся определить по промпту
-        target_category = category or "upper_body" 
-        final_prompt = prompt or "cloth"
-        p_lower = prompt.lower()
-        
-        # Словарь маппинга: Русское слово -> (Категория, Английское описание)
-        # IDM-VTON лучше работает с английским описанием
-        keywords_map = {
-            # Full Body
-            "dress": ("dresses", "dress"),
-            "платье": ("dresses", "dress"),
-            "suit": ("dresses", "mens suit full body"),
-            "костюм": ("dresses", "mens suit full body"),
-            "set": ("dresses", "full body outfit"),
-            "комплект": ("dresses", "full body outfit"),
-            "full": ("dresses", "full body outfit"),
-            "clothes": ("dresses", "full body outfit"),
-            "look": ("dresses", "full body outfit"),
-            "образ": ("dresses", "full body outfit"),
-            "стиль": ("dresses", "full body outfit"),
-            
-            # Layering hints
-            "layer": ("upper_body", "layered outfit"),
-            "под": ("upper_body", "layered outfit"),
-            "футболка под": ("upper_body", "open shirt with t-shirt underneath"),
-            
-            # Lower Body
-            "jeans": ("lower_body", "jeans"),
-            "джинсы": ("lower_body", "jeans"),
-            "pants": ("lower_body", "pants"),
-            "брюки": ("lower_body", "pants"),
-            "skirt": ("lower_body", "skirt"),
-            "юбка": ("lower_body", "skirt"),
-            "shorts": ("lower_body", "shorts"),
-            "шорты": ("lower_body", "shorts"),
-            
-            # Upper Body
-            "t-shirt": ("upper_body", "t-shirt"),
-            "футболка": ("upper_body", "t-shirt"),
-            "shirt": ("upper_body", "shirt"),
-            "рубашка": ("upper_body", "shirt"),
-            "hoodie": ("upper_body", "hoodie"),
-            "худи": ("upper_body", "hoodie"),
-            "jacket": ("upper_body", "jacket"),
-            "куртка": ("upper_body", "jacket"),
-        }
+        print(f"DEBUG: VTON starting (is_premium={is_premium})")
 
-        # Проверяем наличие ключевых слов
-        for k, (cat, eng_desc) in keywords_map.items():
-            if k in p_lower:
-                # Если категория НЕ задана явно, берем из ключевого слова
-                if not category:
-                    target_category = cat
-                
-                # Если промпт очень короткий (одно слово), заменяем его на хороший английский
-                if len(prompt.split()) <= 2:
-                    final_prompt = eng_desc
-                else:
-                    # Иначе просто добавляем английский контекст
-                    final_prompt = f"{eng_desc}, {prompt}"
-                break
-        
-        # Итоговая категория (если так и не определили, то upper_body)
-        final_category_param = target_category
-        
-        # 🔥 УСИЛЕНИЕ: Если режим "Full Body", принудительно добавляем описание
-        if final_category_param == "dresses":
-             if "suit" not in final_prompt.lower() and "dress" not in final_prompt.lower():
-                 final_prompt = f"full body outfit, {final_prompt}"
-
-        print(f"DEBUG: VTON Prompt='{prompt}' -> Detect='{final_prompt}' Category='{final_category_param}' (Explicit='{category}')")
-
-        # 🔥 PRE-PROCESS: CLEAN CLOTHING IMAGE (DISABLED by User Request)
-        # User explicitly asked to remove BiRefNet and use the raw image.
-        clean_clothing_url = clothing_image_url
-        
         try:
-            # Always use Nano Banana PRO for photo try-on (best quality)
+            # Always use Nano Banana PRO for best quality
             model_id = "fal-ai/nano-banana-pro"
             print(f"DEBUG: MagicMirror calling {model_id}...")
 
-            # Determine specific instruction based on category
-            category_instruction = ""
-            if target_category == "upper_body":
-                category_instruction = "Replace ONLY the upper body clothing (tops, shirts, jackets). Keep the lower body (pants/skirt) unchanged."
-            elif target_category == "lower_body":
-                category_instruction = "Replace ONLY the lower body clothing (pants, skirts, shorts). Keep the upper body unchanged."
-            else:
-                category_instruction = "Replace the entire outfit (full body)."
-
             prompt_instruction = (
-                f"{category_instruction} "
-                f"The person in the first image is wearing the clothing from the second image. "
-                f"User instructions: {final_prompt}. "
-                f"Preserve exact body proportions, face, and identity. "
-                f"Photorealistic, natural fit."
+                "Image 1: person.\n"
+                "Image 2: clothing.\n\n"
+                "Replace the current clothes on the person in Image 1 with the clothes from Image 2. "
+                "Keep the person's face, body shape, pose, background and lighting unchanged. "
+                "Preserve fabric details, logos and colors from Image 2. "
+                "Make the result realistic and natural."
             )
 
-            # Nano Banana payload
             nano_payload = {
-                "image_urls": [user_image_url, clean_clothing_url],
+                "image_urls": [user_image_url, clothing_image_url],
                 "prompt": prompt_instruction,
                 "image_guidance_scale": 2.0,
                 "prompt_guidance_scale": 7.0
             }
-            
-            print(f"DEBUG: Nano Banana PRO Payload: prompt={prompt_instruction[:50]}...")
-            
+
+            print(f"DEBUG: Payload ready, calling model...")
+
             try:
                 result = fal_client.run(model_id, arguments=nano_payload)
                 return result
             except Exception as e:
-                if is_premium:
-                    print(f"WARNING: Nano Banana PRO failed ({e}). Falling back to standard...")
-                    # Retry with standard if PRO fails
-                    nano_payload_fallback = nano_payload.copy()
-                    result = fal_client.run("fal-ai/nano-banana/edit", arguments=nano_payload_fallback)
-                    return result
-                else:
-                    raise
+                print(f"WARNING: Nano Banana PRO failed ({e}). Falling back to standard...")
+                nano_payload["image_guidance_scale"] = 2.0
+                result = fal_client.run("fal-ai/nano-banana/edit", arguments=nano_payload)
+                return result
 
         except Exception as e:
-            print(f"Seedream Engine Error: {e}")
-            # Fallback advice if 4.5 doesn't exist
-            if "not found" in str(e).lower() or "permission" in str(e).lower():
-                 print("WARNING: Seedream 4.5 might be private or typo. Falling back to Nano Banana?")
+            print(f"Try-On Error: {e}")
             raise HTTPException(status_code=500, detail=f"Generation failed: {e}")
 
     async def video_tryon(self, user_image_url: str, clothing_image_url: str, prompt: str, category: str = None) -> Dict[str, Any]:
         """
-        Video try-on: Seedream (static try-on) + Kling (animation).
-        Returns animated video with try-on result.
+        Video try-on: Nano Banana PRO (static) + Kling (animation).
         """
         if not self.fal_key:
             raise HTTPException(status_code=500, detail="FAL_KEY is not set in environment")
@@ -200,19 +106,7 @@ class NanoBananaService:
         if not user_image_url or not clothing_image_url:
             raise HTTPException(status_code=400, detail="Both image urls are required")
 
-        # Determine category-specific instruction
-        target_category = category or "upper_body"
-        final_prompt = prompt or "cloth"
-        
-        category_instruction = ""
-        if target_category == "upper_body":
-            category_instruction = "Replace ONLY the upper body clothing (tops, shirts, jackets). Keep the lower body (pants/skirt) unchanged."
-        elif target_category == "lower_body":
-            category_instruction = "Replace ONLY the lower body clothing (pants, skirts, shorts). Keep the upper body unchanged."
-        else:
-            category_instruction = "Replace the entire outfit (full body)."
-
-        print(f"DEBUG: Video VTON Category='{target_category}' Prompt='{final_prompt}'")
+        print(f"DEBUG: Video VTON starting...")
 
         try:
             # Step 1: Use standard edit() method for static try-on (better proportion handling)

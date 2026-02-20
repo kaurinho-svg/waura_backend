@@ -49,13 +49,9 @@ class _VogueTryOnScreenState extends State<VogueTryOnScreen> {
   VideoPlayerController? _videoController; // [NEW]
 
   bool _argsProcessed = false;
-  final _promptCtrl = TextEditingController(); 
-  
-  // Category State
-  String _selectedCategory = 'dresses'; // Default to Full Outfit
   
   // Toggle State
-  bool _isVideoMode = false; // [NEW] false = Photo, true = Video
+  bool _isVideoMode = false; // false = Photo, true = Video
 
   @override
   void didChangeDependencies() {
@@ -160,18 +156,13 @@ class _VogueTryOnScreenState extends State<VogueTryOnScreen> {
       final userUrl = await _api.uploadTemp(_userImage!);
       final clothingUrl = await _api.uploadTemp(_clothingImage!);
 
-      final userPrompt = _promptCtrl.text.trim().isEmpty 
-            ? 'Hyper-realistic virtual try-on. The person in the first image is wearing the exact clothing item(s) shown in the second image. Seamless fit, natural lighting. The clothing texture from the reference is preserved. Maintain the person\'s identity.' 
-            : _promptCtrl.text.trim();
-
-      // 2. Photo Mode: Use Nano Banana (PRO for Premium users!)
+      // 2. Photo Mode: Use Nano Banana PRO
       if (!_isVideoMode) {
         final result = await _api.edit(
           user_image_url: userUrl,
           clothing_image_url: clothingUrl,
-          style_prompt: userPrompt,
-          category: _selectedCategory,
-          is_premium: isPremium, // [NEW] PRO model for Premium users
+          style_prompt: '',
+          is_premium: isPremium,
         );
 
         final staticUrl = _api.extractResultImageUrl(result);
@@ -195,8 +186,7 @@ class _VogueTryOnScreenState extends State<VogueTryOnScreen> {
       final videoResult = await _api.videoTryOn(
         user_image_url: userUrl,
         clothing_image_url: clothingUrl,
-        style_prompt: userPrompt,
-        category: _selectedCategory,
+        style_prompt: '',
       );
 
       // Extract video URL from result
@@ -337,24 +327,6 @@ class _VogueTryOnScreenState extends State<VogueTryOnScreen> {
                     ),
                   ),
 
-                  const SizedBox(height: 24),
-
-                  // [NEW] Category Selection Chips
-                  Center(
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          _buildCategoryChip(theme, 'Верх', 'upper_body', Icons.checkroom),
-                          const SizedBox(width: 12),
-                          _buildCategoryChip(theme, 'Низ', 'lower_body', Icons.directions_walk),
-                          const SizedBox(width: 12),
-                          _buildCategoryChip(theme, 'Весь образ', 'dresses', Icons.accessibility_new),
-                        ],
-                      ),
-                    ),
-                  ),
 
                   const SizedBox(height: 24),
                   
@@ -381,22 +353,6 @@ class _VogueTryOnScreenState extends State<VogueTryOnScreen> {
                     }
                   ),
                   
-                  const SizedBox(height: 24),
-
-                  // Prompt Input
-                  TextField(
-                    controller: _promptCtrl,
-                    decoration: InputDecoration(
-                      labelText: context.tr('try_on_input_label'),
-                      hintText: context.tr('try_on_input_hint'),
-                      filled: true,
-                      fillColor: theme.colorScheme.surface,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    maxLines: 1,
-                  ),
-
-                  const SizedBox(height: 24),
 
                   // Warning about clothing photo quality
                   Padding(
@@ -537,46 +493,7 @@ class _VogueTryOnScreenState extends State<VogueTryOnScreen> {
     );
   }
   
-  Widget _buildCategoryChip(ThemeData theme, String label, String value, IconData icon) {
-    print('Building chip: $label, selected: $_selectedCategory, current: $value');
-    final isSelected = _selectedCategory == value;
-    return ChoiceChip(
-      label: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon, 
-            size: 18, 
-            color: isSelected ? theme.colorScheme.onPrimary : theme.colorScheme.primary,
-          ),
-          const SizedBox(width: 8),
-          Text(label),
-        ],
-      ),
-      selected: isSelected,
-      onSelected: (bool selected) {
-        if (selected) {
-          setState(() {
-            _selectedCategory = value;
-          });
-          print('Category selected: $value');
-        }
-      },
-      selectedColor: theme.colorScheme.primary,
-      labelStyle: TextStyle(
-         color: isSelected ? theme.colorScheme.onPrimary : theme.colorScheme.onSurface,
-         fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-      ),
-      backgroundColor: theme.colorScheme.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(
-          color: isSelected ? Colors.transparent : theme.colorScheme.outline.withOpacity(0.3),
-        ),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-    );
-  }
+
   
   Widget _buildModeBtn(ThemeData theme, String text, bool isVideo, bool isLocked) {
       final isSelected = _isVideoMode == isVideo;
