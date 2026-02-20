@@ -61,8 +61,8 @@ class NanoBananaService:
         print(f"DEBUG: VTON starting (is_premium={is_premium})")
 
         try:
-            # Always use Nano Banana PRO for best quality
-            model_id = "fal-ai/nano-banana-pro"
+            # Correct image editing model with PRO quality
+            model_id = "fal-ai/nano-banana-pro/edit"
             print(f"DEBUG: MagicMirror calling {model_id}...")
 
             prompt_instruction = (
@@ -129,9 +129,9 @@ class NanoBananaService:
             }
 
             try:
-                edit_result = fal_client.run("fal-ai/nano-banana-pro", arguments=nano_payload)
+                edit_result = fal_client.run("fal-ai/nano-banana-pro/edit", arguments=nano_payload)
             except Exception as pro_error:
-                print(f"WARNING: Pro model failed ({pro_error}), falling back to standard...")
+                print(f"WARNING: nano-banana-pro/edit failed ({pro_error}), falling back to standard...")
                 edit_result = fal_client.run("fal-ai/nano-banana/edit", arguments=nano_payload)
 
             # Extract static image URL from edit result
