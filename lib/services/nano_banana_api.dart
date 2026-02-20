@@ -9,6 +9,13 @@ import 'package:image_picker/image_picker.dart';
 
 import '../config/app_config.dart';
 
+/// Thrown when backend returns 402 (not enough credits)
+class InsufficientCreditsException implements Exception {
+  const InsufficientCreditsException();
+  @override
+  String toString() => 'InsufficientCreditsException';
+}
+
 class NanoBananaApi {
   final http.Client _client;
   NanoBananaApi({http.Client? client}) : _client = client ?? http.Client();
@@ -62,14 +69,13 @@ class NanoBananaApi {
     return url;
   }
 
-  /// POST /nano-banana/edit
+  /// POST /nano-banana/edit — costs 2 credits
   Future<Map<String, dynamic>> edit({
     required String user_image_url,
     required String clothing_image_url,
     required String style_prompt,
-    String? category, // "upper_body", "dresses", "lower_body"
-    bool with_logs = false,
-    bool is_premium = false, // [NEW] Pass premium flag for model selection
+    String? user_id,
+    bool is_premium = false,
   }) async {
     final resp = await _client.post(
       _uri("/nano-banana/edit"),
@@ -78,12 +84,14 @@ class NanoBananaApi {
         "user_image_url": user_image_url,
         "clothing_image_url": clothing_image_url,
         "style_prompt": style_prompt,
-        "category": category,
-        "with_logs": with_logs,
-        "is_premium": is_premium, // [NEW]
+        "is_premium": is_premium,
+        if (user_id != null) "user_id": user_id,
       }),
     ).timeout(const Duration(minutes: 5));
 
+    if (resp.statusCode == 402) {
+      throw InsufficientCreditsException();
+    }
     if (resp.statusCode < 200 || resp.statusCode >= 300) {
       throw Exception("edit failed: ${resp.statusCode} ${resp.body}");
     }
@@ -91,13 +99,12 @@ class NanoBananaApi {
     return (jsonDecode(resp.body) as Map<String, dynamic>);
   }
 
-  /// POST /nano-banana/video-tryon
-  /// Direct video try-on: 2 images -> animated video
+  /// POST /nano-banana/video-tryon — costs 10 credits
   Future<Map<String, dynamic>> videoTryOn({
     required String user_image_url,
     required String clothing_image_url,
     required String style_prompt,
-    String? category,
+    String? user_id,
   }) async {
     final resp = await _client.post(
       _uri("/nano-banana/video-tryon"),
@@ -106,15 +113,28 @@ class NanoBananaApi {
         "user_image_url": user_image_url,
         "clothing_image_url": clothing_image_url,
         "style_prompt": style_prompt,
-        "category": category,
+        if (user_id != null) "user_id": user_id,
       }),
-    ).timeout(const Duration(minutes: 10)); // Longer timeout for video
+    ).timeout(const Duration(minutes: 10));
 
+    if (resp.statusCode == 402) {
+      throw InsufficientCreditsException();
+    }
     if (resp.statusCode < 200 || resp.statusCode >= 300) {
       throw Exception("video-tryon failed: ${resp.statusCode} ${resp.body}");
     }
 
     return (jsonDecode(resp.body) as Map<String, dynamic>);
+  }
+
+  /// GET /nano-banana/credits?user_id=...
+  Future<Map<String, dynamic>> getCredits(String userId) async {
+    final uri = Uri.parse("${AppConfig.apiBase}/nano-banana/credits?user_id=$userId");
+    final resp = await _client.get(uri).timeout(const Duration(seconds: 10));
+    if (resp.statusCode < 200 || resp.statusCode >= 300) {
+      throw Exception("getCredits failed: ${resp.statusCode}");
+    }
+    return jsonDecode(resp.body) as Map<String, dynamic>;
   }
 
   /// Пытаемся достать итоговую картинку из ответа

@@ -13,6 +13,9 @@ class AppUser {
   // Premium Status
   final bool isPremium;
 
+  // Try-On Credits
+  final int tryOnCredits;
+
   const AppUser({
     required this.name,
     required this.email,
@@ -20,6 +23,7 @@ class AppUser {
     required this.role,
     this.storeIds = const [],
     this.isPremium = false,
+    this.tryOnCredits = 10,
   });
 
   Map<String, dynamic> toJson() => {
@@ -29,6 +33,7 @@ class AppUser {
         "role": role.name,
         "storeIds": storeIds,
         "is_premium": isPremium,
+        "try_on_credits": tryOnCredits,
       };
 
   static AppUser fromJson(Map<String, dynamic> json) {
@@ -42,6 +47,7 @@ class AppUser {
       role: UserRole.values.byName(roleStr),
       storeIds: (json["storeIds"] as List?)?.cast<String>() ?? [],
       isPremium: (json["is_premium"] as bool?) ?? false,
+      tryOnCredits: (json["try_on_credits"] as int?) ?? 10,
     );
   }
   
@@ -59,6 +65,7 @@ class AppUser {
     UserRole? role,
     List<String>? storeIds,
     bool? isPremium,
+    int? tryOnCredits,
   }) {
     return AppUser(
       name: name ?? this.name,
@@ -67,6 +74,7 @@ class AppUser {
       role: role ?? this.role,
       storeIds: storeIds ?? this.storeIds,
       isPremium: isPremium ?? this.isPremium,
+      tryOnCredits: tryOnCredits ?? this.tryOnCredits,
     );
   }
 }

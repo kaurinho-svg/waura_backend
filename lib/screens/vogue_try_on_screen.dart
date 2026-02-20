@@ -5,19 +5,19 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
-import 'package:video_player/video_player.dart'; // [NEW]
+import 'package:video_player/video_player.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../providers/looks_provider.dart';
-import '../services/nano_banana_api.dart'; // VTON (Step 1)
-import '../services/video_generation_service.dart'; // Kling Video (Step 2)
+import '../services/nano_banana_api.dart';
+import '../services/video_generation_service.dart';
 import '../ui/components/premium_card.dart';
 import '../ui/components/section_header.dart';
 import '../ui/components/action_button.dart';
-import '../ui/components/try_on_animation.dart'; 
-import '../ui/components/try_on_animation.dart'; 
-import '../l10n/app_localizations.dart'; 
-import '../providers/auth_provider.dart'; // [NEW]
-import 'premium_paywall_screen.dart'; // [NEW] 
+import '../ui/components/try_on_animation.dart';
+import '../l10n/app_localizations.dart';
+import '../providers/auth_provider.dart';
+import 'premium_paywall_screen.dart';
 
 /// VOGUE.AI Style Try-On Screen
 class VogueTryOnScreen extends StatefulWidget {
@@ -156,18 +156,30 @@ class _VogueTryOnScreenState extends State<VogueTryOnScreen> {
       final userUrl = await _api.uploadTemp(_userImage!);
       final clothingUrl = await _api.uploadTemp(_clothingImage!);
 
-      // 2. Photo Mode: Use Nano Banana PRO
+      final authProvider = context.read<AuthProvider>();
+      final supaUserId = Supabase.instance.client.auth.currentUser?.id;
+
+      // 2. Photo Mode
       if (!_isVideoMode) {
         final result = await _api.edit(
           user_image_url: userUrl,
           clothing_image_url: clothingUrl,
           style_prompt: '',
           is_premium: isPremium,
+          user_id: supaUserId,
         );
+
+        // Deduct 2 credits locally for instant UI update
+        authProvider.deductCreditsLocally(2);
+
+        // Use remaining_credits from response if available
+        if (result['remaining_credits'] != null) {
+          authProvider.deductCreditsLocally(0); // noop — already deducted on backend
+        }
 
         final staticUrl = _api.extractResultImageUrl(result);
         if (staticUrl == null) throw Exception('Не удалось создать образ (нет картинки)');
-        
+
         if (!mounted) return;
         setState(() {
           _resultUrl = staticUrl;
@@ -177,17 +189,21 @@ class _VogueTryOnScreenState extends State<VogueTryOnScreen> {
         return;
       }
 
-      // 3. Video Mode: Direct video try-on using Kling (PREMIUM ONLY)
+      // 3. Video Mode
       if (!mounted) return;
       setState(() {
-        _loadingMessage = context.tr('try_on_step_2'); // "Generating video..."
+        _loadingMessage = context.tr('try_on_step_2');
       });
 
       final videoResult = await _api.videoTryOn(
         user_image_url: userUrl,
         clothing_image_url: clothingUrl,
         style_prompt: '',
+        user_id: supaUserId,
       );
+
+      // Deduct 10 credits locally
+      authProvider.deductCreditsLocally(10);
 
       // Extract video URL from result
       String? videoUrl;
@@ -199,7 +215,6 @@ class _VogueTryOnScreenState extends State<VogueTryOnScreen> {
 
       if (videoUrl == null) throw Exception('Video generation failed: no video URL returned');
 
-      // Initialize Video Player
       final controller = VideoPlayerController.networkUrl(Uri.parse(videoUrl));
       await controller.initialize();
       controller.setLooping(true);
@@ -213,6 +228,13 @@ class _VogueTryOnScreenState extends State<VogueTryOnScreen> {
         _loadingMessage = null;
       });
 
+    } on InsufficientCreditsException {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadingMessage = null;
+      });
+      _showPaywall();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -264,7 +286,6 @@ class _VogueTryOnScreenState extends State<VogueTryOnScreen> {
 
   @override
   void dispose() {
-    _promptCtrl.dispose();
     _disposeVideoController();
     super.dispose();
   }
@@ -389,7 +410,85 @@ class _VogueTryOnScreenState extends State<VogueTryOnScreen> {
                     ),
                   ),
 
+                  const SizedBox(height: 12),
+
+                  // AI disclaimer notice
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.6),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.auto_awesome,
+                            size: 18,
+                            color: theme.colorScheme.outline,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              context.tr('try_on_ai_disclaimer'),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                                height: 1.4,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
                   const SizedBox(height: 24),
+
+                  // Credit balance badge
+                  Consumer<AuthProvider>(
+                    builder: (context, auth, _) {
+                      final credits = auth.user?.tryOnCredits ?? 0;
+                      final costIcon = _isVideoMode ? '🎬 -10' : '📷 -2';
+                      final isLow = credits < (_isVideoMode ? 10 : 2);
+                      return Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: isLow
+                                ? theme.colorScheme.errorContainer.withOpacity(0.7)
+                                : theme.colorScheme.primaryContainer.withOpacity(0.6),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '🎟 $credits кредитов',
+                                style: theme.textTheme.labelLarge?.copyWith(
+                                  color: isLow
+                                      ? theme.colorScheme.onErrorContainer
+                                      : theme.colorScheme.onPrimaryContainer,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                '($costIcon)',
+                                style: theme.textTheme.labelMedium?.copyWith(
+                                  color: isLow
+                                      ? theme.colorScheme.onErrorContainer
+                                      : theme.colorScheme.onPrimaryContainer,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 16),
 
                   // Try-On Button
                   Center(

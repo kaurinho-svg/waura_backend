@@ -190,11 +190,36 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Update local credit balance after a successful try-on
+  void deductCreditsLocally(int amount) {
+    if (_user == null) return;
+    final newCredits = (_user!.tryOnCredits - amount).clamp(0, 9999);
+    _user = _user!.copyWith(tryOnCredits: newCredits);
+    notifyListeners();
+  }
+
+  /// Sync credits from Supabase (e.g. after top-up or on app resume)
+  Future<void> refreshCredits() async {
+    final supaUser = _supabase.auth.currentUser;
+    if (supaUser == null || _user == null) return;
+    try {
+      final data = await _supabase
+          .from('profiles')
+          .select('try_on_credits')
+          .eq('id', supaUser.id)
+          .single();
+      final credits = (data['try_on_credits'] as int?) ?? 10;
+      _user = _user!.copyWith(tryOnCredits: credits);
+      notifyListeners();
+    } catch (e) {
+      debugPrint('refreshCredits error: $e');
+    }
+  }
+
   Future<void> logout() async {
     await _supabase.auth.signOut();
     _user = null;
     _justRegistered = false;
-    // await _storage.clear(); // Don't clear EVERYTHING, maybe just auth flags
     notifyListeners();
   }
 }
