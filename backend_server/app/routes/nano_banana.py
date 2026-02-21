@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from app.services.nano_banana_service import nano_banana_service
-from app.services.credits_service import credits_service
+from app.services.credits_service import credits_service, PHOTO_COST, VIDEO_COST
 
 router = APIRouter()
 
@@ -48,7 +48,7 @@ async def edit(req: NanaBananaEditRequest):
     # Deduct 2 credits if user_id provided
     new_balance = None
     if req.user_id:
-        new_balance = credits_service.deduct_credits(req.user_id, credits_service.PHOTO_COST)
+        new_balance = credits_service.deduct_credits(req.user_id, PHOTO_COST)
 
     result = await nano_banana_service.edit(
         user_image_url=req.user_image_url,
@@ -80,7 +80,7 @@ async def video_tryon(req: NanaBananaEditRequest):
     # Deduct 10 credits if user_id provided
     new_balance = None
     if req.user_id:
-        new_balance = credits_service.deduct_credits(req.user_id, credits_service.VIDEO_COST)
+        new_balance = credits_service.deduct_credits(req.user_id, VIDEO_COST)
 
     result = await nano_banana_service.video_tryon(
         user_image_url=req.user_image_url,
