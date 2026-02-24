@@ -138,6 +138,7 @@ async def show_stats(message: Message, store: dict):
         f"👥 Уникальных покупателей: <b>{stats['total_buyers']}</b>\n"
         f"📦 Активных товаров: <b>{stats['active_products']}</b>\n\n"
         f"🛒 Всего заказов: <b>{stats['total_orders']}</b>\n"
-        f"✅ Подтвержденных заказов: <b>{stats['confirmed_orders']}</b>\n",
+        f"✅ Подтвержденных заказов: <b>{stats['confirmed_orders']}</b>\n\n"
+        f"💰 <b>Выручка: {stats['total_revenue']:,.0f} ₸</b>",
         parse_mode="HTML",
     )

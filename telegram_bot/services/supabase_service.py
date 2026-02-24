@@ -180,6 +180,7 @@ def get_store_analytics(store_id: str) -> dict:
         "active_products": 0,
         "total_orders": 0,
         "confirmed_orders": 0,
+        "total_revenue": 0.0,
     }
     
     # Get buyers count
@@ -192,21 +193,22 @@ def get_store_analytics(store_id: str) -> dict:
     if res_products.count:
         stats["active_products"] = res_products.count
 
-    # Get orders count (requires joining with products to filter by store_id)
-    # Since we can't easily count joined tables directly in standard supabase-py without RPC, 
-    # we'll fetch products first, then count orders for those products.
+    # Get orders and calculate revenue
     products = get_products_by_store(store_id)
     product_ids = [p["id"] for p in products]
+    product_prices = {p["id"]: p["price"] for p in products}
     
     if product_ids:
-        # Total orders
-        res_orders = supabase.from_("bot_orders").select("id", count="exact").in_("product_id", product_ids).execute()
-        if res_orders.count:
-            stats["total_orders"] = res_orders.count
-            
-        # Confirmed orders
-        res_confirmed = supabase.from_("bot_orders").select("id", count="exact").in_("product_id", product_ids).eq("status", "confirmed").execute()
-        if res_confirmed.count:
-            stats["confirmed_orders"] = res_confirmed.count
+        # Fetch all orders for these products to count and calculate revenue
+        # We need the product_id and status for each order
+        res_orders = supabase.from_("bot_orders").select("id, product_id, status").in_("product_id", product_ids).execute()
+        orders = res_orders.data or []
+        
+        stats["total_orders"] = len(orders)
+        
+        for order in orders:
+            if order.get("status") == "confirmed":
+                stats["confirmed_orders"] += 1
+                stats["total_revenue"] += float(product_prices.get(order["product_id"], 0))
 
     return stats
