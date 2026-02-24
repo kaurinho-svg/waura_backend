@@ -13,6 +13,7 @@ from services.supabase_service import (
     add_admin_to_store,
     remove_admin_from_store,
     get_store_admins,
+    get_store_analytics,
 )
 
 router = Router()
@@ -116,5 +117,27 @@ async def list_admins(message: Message, store: dict):
         f"👥 <b>Администраторы магазина {store['name']}</b>\n\n"
         f"👑 Владелец: <code>{store['telegram_id']}</code>\n\n"
         f"🔑 Дополнительные администраторы ({len(admins)}):\n{admin_list}",
+        parse_mode="HTML",
+    )
+
+
+# ─── /stats ───────────────────────────────────────────────────────────────────
+
+@router.message(Command("stats"))
+async def show_stats(message: Message, store: dict):
+    from handlers.shop import is_owner
+    if not is_owner(message.from_user.id, store):
+        await message.answer("⛔️ У вас нет доступа к статистике магазина.")
+        return
+
+    await message.answer("📊 Сбор статистики, подождите...")
+    stats = get_store_analytics(store["id"])
+
+    await message.answer(
+        f"📊 <b>Аналитика магазина {store['name']}</b>\n\n"
+        f"👥 Уникальных покупателей: <b>{stats['total_buyers']}</b>\n"
+        f"📦 Активных товаров: <b>{stats['active_products']}</b>\n\n"
+        f"🛒 Всего заказов: <b>{stats['total_orders']}</b>\n"
+        f"✅ Подтвержденных заказов: <b>{stats['confirmed_orders']}</b>\n",
         parse_mode="HTML",
     )
