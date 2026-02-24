@@ -4,6 +4,7 @@ import sys
 
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiohttp import web
 
 from config import TELEGRAM_BOT_TOKEN
 from handlers import start, shop, catalog, tryon, orders, broadcast, admins
@@ -64,26 +65,49 @@ async def main():
                 "kaspi_phone": "",
                 "kaspi_pay_url": "",
             }
-            await run_bot(TELEGRAM_BOT_TOKEN, placeholder_store)
-        return
+            # Instead of await run_bot(TELEGRAM_BOT_TOKEN, placeholder_store),
+            # we will run it as a task so the web server can also run.
+            asyncio.create_task(run_bot(TELEGRAM_BOT_TOKEN, placeholder_store))
+        else:
+            return
 
-    # Build {store_id: Bot} map for the scheduler
-    bots_map = {
-        store["id"]: Bot(token=store["bot_token"])
-        for store in stores
-        if store.get("bot_token")
-    }
+    if stores:
+        # Build {store_id: Bot} map for the scheduler
+        bots_map = {
+            store["id"]: Bot(token=store["bot_token"])
+            for store in stores
+            if store.get("bot_token")
+        }
 
-    # Run all bots + scheduler concurrently
-    tasks = [
-        asyncio.create_task(run_bot(store["bot_token"], store))
-        for store in stores
-        if store.get("bot_token")
-    ]
-    tasks.append(asyncio.create_task(run_scheduler(bots_map)))
+        # Run all bots + scheduler concurrently
+        for store in stores:
+            if store.get("bot_token"):
+                asyncio.create_task(run_bot(store["bot_token"], store))
+        
+        asyncio.create_task(run_scheduler(bots_map))
+        logger.info(f"🚀 Started shop bot(s) + scheduler")
 
-    logger.info(f"🚀 Started {len(tasks) - 1} shop bot(s) + scheduler")
-    await asyncio.gather(*tasks)
+    # Define a simple health check handler for Render
+    async def health_check(request):
+        return web.Response(text="Bot is running!")
+
+    # Start the aiohttp web server
+    app = web.Application()
+    app.router.add_get('/', health_check)
+    app.router.add_get('/health', health_check)
+
+    runner = web.AppRunner(app)
+    await runner.setup()
+    
+    import os
+    port = int(os.environ.get("PORT", 8080))
+    site = web.TCPSite(runner, '0.0.0.0', port)
+    await site.start()
+    
+    logger.info(f"🌐 Web server started on port {port} (for Render health checks)")
+
+    # Keep the main coroutine running indefinitely
+    await asyncio.Event().wait()
 
 
 if __name__ == "__main__":
