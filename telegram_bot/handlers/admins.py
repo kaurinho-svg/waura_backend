@@ -20,7 +20,10 @@ router = Router()
 
 
 def is_primary_owner(telegram_id: int, store: dict) -> bool:
-    """Only the primary owner (telegram_id in store row) can manage admins."""
+    """Only the primary owner or superadmin can manage admins."""
+    from config import SUPER_ADMIN_IDS
+    if telegram_id in SUPER_ADMIN_IDS:
+        return True
     return store.get("telegram_id") == telegram_id
 
 

@@ -19,6 +19,9 @@ class BroadcastState(StatesGroup):
 
 
 def is_owner(telegram_id: int, store: dict) -> bool:
+    from config import SUPER_ADMIN_IDS
+    if telegram_id in SUPER_ADMIN_IDS:
+        return True
     if store.get("telegram_id") == telegram_id:
         return True
     extra_admins = store.get("admin_ids") or []

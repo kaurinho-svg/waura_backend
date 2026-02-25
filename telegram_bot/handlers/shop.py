@@ -36,7 +36,10 @@ class EditPayment(StatesGroup):
 # ─── Admin guard ──────────────────────────────────────────────────────────────
 
 def is_owner(telegram_id: int, store: dict) -> bool:
-    """Returns True if the user is the store owner or an extra admin."""
+    """Returns True if the user is the store owner, extra admin, or superadmin."""
+    from config import SUPER_ADMIN_IDS
+    if telegram_id in SUPER_ADMIN_IDS:
+        return True
     if store.get("telegram_id") == telegram_id:
         return True
     extra_admins = store.get("admin_ids") or []
