@@ -133,12 +133,28 @@ async def show_stats(message: Message, store: dict):
     await message.answer("📊 Сбор статистики, подождите...")
     stats = get_store_analytics(store["id"])
 
-    await message.answer(
-        f"📊 <b>Аналитика магазина {store['name']}</b>\n\n"
-        f"👥 Уникальных покупателей: <b>{stats['total_buyers']}</b>\n"
-        f"📦 Активных товаров: <b>{stats['active_products']}</b>\n\n"
-        f"🛒 Всего заказов: <b>{stats['total_orders']}</b>\n"
-        f"✅ Подтвержденных заказов: <b>{stats['confirmed_orders']}</b>\n\n"
-        f"💰 <b>Выручка: {stats['total_revenue']:,.0f} ₸</b>",
-        parse_mode="HTML",
-    )
+    if store.get("is_premium"):
+        # Full analytics for Premium stores
+        await message.answer(
+            f"📊 <b>Аналитика {store['name']} (Premium)</b>\n\n"
+            f"📦 Активных товаров: <b>{stats['active_products']}</b>\n"
+            f"🛒 Всего заказов: <b>{stats['total_orders']}</b>\n\n"
+            f"👥 Уникальных покупателей: <b>{stats['total_buyers']}</b>\n"
+            f"✅ Подтвержденных заказов: <b>{stats['confirmed_orders']}</b>\n\n"
+            f"💰 <b>Выручка: {stats['total_revenue']:,.0f} ₸</b>",
+            parse_mode="HTML",
+        )
+    else:
+        # Basic analytics for standard stores + Upsell
+        await message.answer(
+            f"📊 <b>Аналитика {store['name']}</b>\n\n"
+            f"📦 Активных товаров: <b>{stats['active_products']}</b>\n"
+            f"🛒 Всего заказов: <b>{stats['total_orders']}</b>\n\n"
+            f"👥 Уникальных покупателей: 🔒 <i>Premium</i>\n"
+            f"✅ Подтвержденных заказов: 🔒 <i>Premium</i>\n"
+            f"💰 Выручка магазина: 🔒 <i>Premium</i>\n\n"
+            f"💎 <b>Подключите Premium!</b>\n"
+            f"Узнайте свою реальную прибыль и базу клиентов. "
+            f"Для подключения напишите @waura_support",
+            parse_mode="HTML",
+        )

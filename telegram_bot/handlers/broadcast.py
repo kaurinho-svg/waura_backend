@@ -31,6 +31,17 @@ async def broadcast_start(message: Message, state: FSMContext, store: dict):
         await message.answer("⛔️ Только владелец магазина может делать рассылку.")
         return
 
+    # Check for Premium subscription
+    if not store.get("is_premium"):
+        await message.answer(
+            "💎 <b>Эта функция доступна только по Premium-подписке!</b>\n\n"
+            "Рассылки об акциях, скидках и новых поступлениях (команда /broadcast) "
+            "позволяют мгновенно увеличить ваши продажи.\n\n"
+            "Свяжитесь с администратором @waura_support для подключения Premium.",
+            parse_mode="HTML"
+        )
+        return
+
     buyers = get_buyers_for_store(store["id"])
     if not buyers:
         await message.answer(
