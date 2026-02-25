@@ -55,6 +55,20 @@ def remove_admin_from_store(store_id: str, telegram_id: int) -> None:
     supabase.from_("bot_stores").update({"admin_ids": admins}).eq("id", store_id).execute()
 
 
+def decrement_store_generations(store_id: str, current_generations: int) -> None:
+    if current_generations > 0:
+        supabase.from_("bot_stores").update({"generations_left": current_generations - 1}).eq("id", store_id).execute()
+
+
+def add_store_generations(telegram_id: int, amount: int) -> Optional[dict]:
+    store = get_store_by_telegram_id(telegram_id)
+    if not store:
+        return None
+    current = store.get("generations_left") or 0
+    res = supabase.from_("bot_stores").update({"generations_left": current + amount}).eq("id", store["id"]).execute()
+    return res.data[0] if res.data else None
+
+
 # ─── PRODUCTS ─────────────────────────────────────────────────────────────────
 
 def get_products_by_store(store_id: str) -> list:

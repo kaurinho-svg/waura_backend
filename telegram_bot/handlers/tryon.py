@@ -16,7 +16,15 @@ class TryOnState(StatesGroup):
 
 # Store product_id in state data
 @router.callback_query(F.data.startswith("tryon:start:"))
-async def tryon_start(callback: CallbackQuery, state: FSMContext):
+async def tryon_start(callback: CallbackQuery, state: FSMContext, store: dict):
+    # Check Generation Limits
+    if store.get("generations_left", 0) <= 0:
+        await callback.answer(
+            "В магазине закончились лимиты на примерки.",
+            show_alert=True
+        )
+        return
+
     product_id = callback.data.split(":")[2]
     p = get_product_by_id(product_id)
     if not p or not p.get("photo_url"):
@@ -37,7 +45,7 @@ async def tryon_start(callback: CallbackQuery, state: FSMContext):
 
 
 @router.message(TryOnState.waiting_user_photo, F.photo)
-async def tryon_process(message: Message, state: FSMContext, bot: Bot):
+async def tryon_process(message: Message, state: FSMContext, bot: Bot, store: dict):
     data = await state.get_data()
     await state.clear()
 
@@ -55,6 +63,27 @@ async def tryon_process(message: Message, state: FSMContext, bot: Bot):
 
         # Run try-on
         result_url = await do_tryon(user_image_url=user_url, clothing_image_url=clothing_url)
+
+        # Decrement counter and check thresholds
+        current_gens = store.get("generations_left") or 0
+        from services.supabase_service import decrement_store_generations, get_store_admins
+        decrement_store_generations(store["id"], current_gens)
+
+        new_gens = current_gens - 1
+        if new_gens in (10, 5, 0):
+            admins_to_notify = [store["telegram_id"]] + get_store_admins(store["id"])
+            for adm_id in set(admins_to_notify):
+                try:
+                    await bot.send_message(
+                        adm_id,
+                        f"⚠️ <b>Внимание!</b>\n"
+                        f"В магазине <b>{store['name']}</b> заканчиваются лимиты виртуальных примерок.\n\n"
+                        f"Осталось: <b>{new_gens}</b>.\n"
+                        f"Обратитесь к администратору для пополнения баланса.",
+                        parse_mode="HTML"
+                    )
+                except Exception:
+                    pass
 
         await processing_msg.delete()
         await message.answer_photo(

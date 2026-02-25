@@ -140,6 +140,7 @@ async def show_stats(message: Message, store: dict):
         # Full analytics for Premium stores
         await message.answer(
             f"📊 <b>Аналитика {store['name']} (Premium)</b>\n\n"
+            f"🔄 Доступных примерок: <b>{store.get('generations_left', 0)}</b>\n"
             f"📦 Активных товаров: <b>{stats['active_products']}</b>\n"
             f"🛒 Всего заказов: <b>{stats['total_orders']}</b>\n\n"
             f"👥 Уникальных покупателей: <b>{stats['total_buyers']}</b>\n"
@@ -151,6 +152,7 @@ async def show_stats(message: Message, store: dict):
         # Basic analytics for standard stores + Upsell
         await message.answer(
             f"📊 <b>Аналитика {store['name']}</b>\n\n"
+            f"🔄 Доступных примерок: <b>{store.get('generations_left', 0)}</b>\n"
             f"📦 Активных товаров: <b>{stats['active_products']}</b>\n"
             f"🛒 Всего заказов: <b>{stats['total_orders']}</b>\n\n"
             f"👥 Уникальных покупателей: 🔒 <i>Premium</i>\n"
@@ -161,3 +163,38 @@ async def show_stats(message: Message, store: dict):
             f"Для подключения обратитесь к администратору",
             parse_mode="HTML",
         )
+
+
+# ─── /addgen <owner_id> <amount> ──────────────────────────────────────────────
+
+@router.message(Command("addgen"))
+async def add_generations(message: Message, store: dict):
+    from config import SUPER_ADMIN_IDS
+    if message.from_user.id not in SUPER_ADMIN_IDS:
+        await message.answer("⛔️ Только суперадмин может пополнять баланс генераций.")
+        return
+
+    args = message.text.split()
+    if len(args) < 3 or not args[1].lstrip("-").isdigit() or not args[2].lstrip("-").isdigit():
+        await message.answer(
+            "❌ Неверный формат.\n\n"
+            "Используйте:\n<code>/addgen &lt;ID Владельца&gt; &lt;Количество&gt;</code>\n\n"
+            "Пример:\n<code>/addgen 123456789 50</code>",
+            parse_mode="HTML"
+        )
+        return
+
+    target_id = int(args[1])
+    amount = int(args[2])
+
+    from services.supabase_service import add_store_generations
+    updated_store = add_store_generations(target_id, amount)
+    
+    if updated_store:
+        await message.answer(
+            f"✅ Успешно! Баланс магазина <b>{updated_store['name']}</b> изменен на {amount}.\n"
+            f"Текущий остаток примерок: <b>{updated_store['generations_left']}</b>",
+            parse_mode="HTML"
+        )
+    else:
+        await message.answer("❌ Магазин с таким Telegram ID владельца не найден.")
