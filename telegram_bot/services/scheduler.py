@@ -56,7 +56,7 @@ async def check_subscriptions(bots: dict[str, Bot]):
                         text=(
                             f"⚠️ <b>Подписка истекает {label}!</b>\n\n"
                             f"Магазин <b>{store['name']}</b> потеряет доступ к боту.\n"
-                            f"Напишите @waura_support для продления."
+                            f"Напишите администратору для продления."
                         ),
                         parse_mode="HTML",
                     )

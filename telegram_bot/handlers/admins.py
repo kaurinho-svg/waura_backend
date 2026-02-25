@@ -158,6 +158,6 @@ async def show_stats(message: Message, store: dict):
             f"💰 Выручка магазина: 🔒 <i>Premium</i>\n\n"
             f"💎 <b>Подключите Premium!</b>\n"
             f"Узнайте свою реальную прибыль и базу клиентов. "
-            f"Для подключения напишите @waura_support",
+            f"Для подключения обратитесь к администратору",
             parse_mode="HTML",
         )

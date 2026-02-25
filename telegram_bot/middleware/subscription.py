@@ -28,7 +28,7 @@ class SubscriptionMiddleware(BaseMiddleware):
                     if store:  # Only show message if they are a registered shop
                         await event.answer(
                             "⭐️ Эта функция доступна по подписке.\n"
-                            "Напишите @waura_support для подключения.",
+                            "Обратитесь к администратору для подключения.",
                             show_alert=True,
                         )
                         return
