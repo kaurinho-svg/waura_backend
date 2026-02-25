@@ -7,7 +7,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiohttp import web
 
 from config import TELEGRAM_BOT_TOKEN
-from handlers import start, shop, catalog, tryon, orders, broadcast, admins
+from handlers import start, shop, catalog, tryon, orders, broadcast, admins, stylist
 from middleware.store_context import StoreContextMiddleware
 from services.supabase_service import get_all_stores_with_tokens
 from services.scheduler import run_scheduler
@@ -35,6 +35,7 @@ def build_dispatcher(store: dict) -> Dispatcher:
     dp.include_router(tryon.router)
     dp.include_router(orders.router)
     dp.include_router(catalog.router)
+    dp.include_router(stylist.router)
 
     return dp
 

@@ -14,6 +14,8 @@ SUPER_ADMIN_IDS = [
     if x.strip().isdigit()
 ]
 
+GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+
 if not TELEGRAM_BOT_TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN is not set")
 if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:

@@ -8,11 +8,15 @@ from services.buyer_service import register_buyer
 router = Router()
 
 
-def main_menu_kb():
+def main_menu_kb(is_premium: bool = False):
     builder = InlineKeyboardBuilder()
     builder.button(text="🛍 Каталог", callback_data="catalog:start")
     builder.button(text="📂 По категориям", callback_data="catalog:categories")
-    builder.adjust(2)
+    if is_premium:
+        builder.button(text="✨ AI-Стилист 💎", callback_data="stylist:start")
+    
+    # Adjust layout: 2 buttons on first row, then 1
+    builder.adjust(2, 1)
     return builder.as_markup()
 
 
@@ -29,6 +33,6 @@ async def cmd_start(message: Message, store: dict):
         f"👋 Добро пожаловать в <b>{store['name']}</b>!\n\n"
         f"Здесь вы можете просмотреть каталог одежды, примерить понравившиеся вещи и сделать заказ.\n\n"
         f"Выберите действие:",
-        reply_markup=main_menu_kb(),
+        reply_markup=main_menu_kb(store.get("is_premium", False)),
         parse_mode="HTML",
     )
