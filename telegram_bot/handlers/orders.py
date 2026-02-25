@@ -7,7 +7,7 @@ from keyboards.buyer_kb import sizes_kb, payment_kb
 from services.supabase_service import (
     get_product_by_id, get_sizes_by_product, get_store_by_telegram_id,
     create_order, update_order_payment_screenshot, get_order_by_id,
-    decrement_size_quantity
+    decrement_size_quantity, get_store_admins
 )
 from keyboards.shop_kb import order_action_kb
 
@@ -106,32 +106,51 @@ async def order_screenshot_received(message: Message, state: FSMContext, bot: Bo
         await message.answer("❌ Заказ не найден")
         return
 
-    # Notify the shop owner
+    # Notify the shop owner and all admins
     try:
         product = order.get("bot_products") or {}
         store_info = (product.get("bot_stores") or {})
+        store_id = store_info.get("id")
         shop_telegram_id = store_info.get("telegram_id")
         product_name = product.get("name", "—")
 
+        # Get all admins to notify
+        admins_to_notify = []
         if shop_telegram_id:
+            admins_to_notify.append(shop_telegram_id)
+        if store_id:
+            extra_admins = get_store_admins(store_id)
+            admins_to_notify.extend(extra_admins)
+            
+        # Ensure unique IDs
+        admins_to_notify = list(set(admins_to_notify))
+
+        if admins_to_notify:
             buyer_username = message.from_user.username
             buyer_info = f"@{buyer_username}" if buyer_username else str(message.from_user.id)
 
-            await bot.send_photo(
-                chat_id=shop_telegram_id,
-                photo=file_id,
-                caption=(
-                    f"🛒 <b>Новый заказ!</b>\n\n"
-                    f"🏷 Товар: {product_name}\n"
-                    f"📏 Размер: {order.get('size', '—')}\n"
-                    f"👤 Покупатель: {buyer_info}\n\n"
-                    f"Скриншот оплаты выше 👆"
-                ),
-                parse_mode="HTML",
-                reply_markup=order_action_kb(order_id),
+            caption = (
+                f"🛒 <b>Новый заказ!</b>\n\n"
+                f"🏷 Товар: {product_name}\n"
+                f"📏 Размер: {order.get('size', '—')}\n"
+                f"👤 Покупатель: {buyer_info}\n\n"
+                f"Скриншот оплаты выше 👆"
             )
+            
+            for admin_id in admins_to_notify:
+                try:
+                    await bot.send_photo(
+                        chat_id=admin_id,
+                        photo=file_id,
+                        caption=caption,
+                        parse_mode="HTML",
+                        reply_markup=order_action_kb(order_id),
+                    )
+                except Exception as inner_e:
+                    print(f"Failed to notify admin {admin_id}: {inner_e}")
+                    
     except Exception as e:
-        print(f"Failed to notify shop: {e}")
+        print(f"Failed to notify shop admins: {e}")
 
     await message.answer(
         "✅ Ваш скриншот получен! Магазин скоро подтвердит заказ.\n\n"
