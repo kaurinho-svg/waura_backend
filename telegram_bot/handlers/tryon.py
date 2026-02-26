@@ -61,8 +61,9 @@ async def tryon_process(message: Message, state: FSMContext, bot: Bot, store: di
         file_bytes = await bot.download_file(file.file_path)
         user_url = await upload_image_to_backend(file_bytes.read())
 
-        # Run try-on
-        result_url = await do_tryon(user_image_url=user_url, clothing_image_url=clothing_url)
+        # Run try-on (use PRO model for premium/VIP stores, standard for basic)
+        is_premium = store.get("is_premium", False) or store.get("is_vip", False)
+        result_url = await do_tryon(user_image_url=user_url, clothing_image_url=clothing_url, is_premium=is_premium)
 
         # Decrement counter and check thresholds
         current_gens = store.get("generations_left") or 0
