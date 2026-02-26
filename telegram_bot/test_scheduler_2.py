@@ -1,12 +1,14 @@
-import logging, sys, asyncio, os
+import sys, asyncio, logging
 logging.basicConfig(level=logging.INFO)
-from dotenv import load_dotenv
-load_dotenv('.env')
 sys.path.append('.')
-from services.supabase_service import get_abandoned_pending_orders
+from aiogram import Bot
+from services.supabase_service import supabase
+from services.scheduler import check_abandoned_carts
 
-def test():
-    orders = get_abandoned_pending_orders(minutes=20)
-    print(f'Found {len(orders)} orders: {orders}')
+async def test():
+    res = supabase.from_('bot_stores').select('id, bot_token').neq('bot_token', '').execute()
+    bots = {s['id']: Bot(token=s['bot_token']) for s in res.data}
+    await check_abandoned_carts(bots)
+    print('Job finished')
 
-test()
+asyncio.run(test())

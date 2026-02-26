@@ -50,7 +50,9 @@ class NanoBananaService:
 
     async def edit(self, user_image_url: str, clothing_image_url: str, prompt: str, category: str = None, is_premium: bool = False) -> Dict[str, Any]:
         """
-        Virtual Try-On using Nano Banana PRO.
+        Virtual Try-On.
+        - is_premium=True  → nano-banana-pro/edit (Premium / VIP tier)
+        - is_premium=False → nano-banana/edit      (Basic tier, fallback)
         """
         if not self.fal_key:
             raise HTTPException(status_code=500, detail="FAL_KEY is not set in environment")
@@ -58,13 +60,13 @@ class NanoBananaService:
         if not user_image_url or not clothing_image_url:
             raise HTTPException(status_code=400, detail="Both image urls are required")
 
-        print(f"DEBUG: VTON starting (is_premium={is_premium})")
+        # Choose model based on tier
+        primary_model = "fal-ai/nano-banana-pro/edit" if is_premium else "fal-ai/nano-banana/edit"
+        fallback_model = "fal-ai/nano-banana/edit"  # always fall back to standard
+
+        print(f"DEBUG: VTON starting (is_premium={is_premium}, model={primary_model})")
 
         try:
-            # Correct image editing model with PRO quality
-            model_id = "fal-ai/nano-banana-pro/edit"
-            print(f"DEBUG: MagicMirror calling {model_id}...")
-
             prompt_instruction = (
                 "Image 1: person.\n"
                 "Image 2: clothing.\n\n"
@@ -81,15 +83,14 @@ class NanoBananaService:
                 "prompt_guidance_scale": 7.0
             }
 
-            print(f"DEBUG: Payload ready, calling model...")
+            print(f"DEBUG: Payload ready, calling {primary_model}...")
 
             try:
-                result = fal_client.run(model_id, arguments=nano_payload)
+                result = fal_client.run(primary_model, arguments=nano_payload)
                 return result
             except Exception as e:
-                print(f"WARNING: Nano Banana PRO failed ({e}). Falling back to standard...")
-                nano_payload["image_guidance_scale"] = 2.0
-                result = fal_client.run("fal-ai/nano-banana/edit", arguments=nano_payload)
+                print(f"WARNING: {primary_model} failed ({e}). Falling back to {fallback_model}...")
+                result = fal_client.run(fallback_model, arguments=nano_payload)
                 return result
 
         except Exception as e:
