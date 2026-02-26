@@ -32,6 +32,9 @@ class EditPayment(StatesGroup):
     kaspi = State()
     kaspi_pay = State()
 
+class EditChannel(StatesGroup):
+    channel_id = State()
+
 
 # ─── Admin guard ──────────────────────────────────────────────────────────────
 
@@ -204,8 +207,36 @@ async def add_sizes(message: Message, state: FSMContext, store: dict, bot: Bot):
                 sz, qty = part.strip().split(":", 1)
                 try:
                     add_size(product["id"], sz.strip(), int(qty.strip()))
+                    add_size(product["id"], sz.strip(), int(qty.strip()))
                 except Exception:
                     pass
+
+    # Post to channel if VIP
+    channel_id = store.get("channel_id")
+    if store.get("is_vip") and channel_id:
+        try:
+            bot_me = await bot.get_me()
+            prod_link = f"https://t.me/{bot_me.username}?start=prod_{product['id']}"
+            
+            from aiogram.utils.keyboard import InlineKeyboardBuilder
+            kb = InlineKeyboardBuilder()
+            kb.button(text="🛍 Купить в боте", url=prod_link)
+            
+            await bot.send_photo(
+                chat_id=channel_id,
+                photo=photo_url,
+                caption=(
+                    f"🔥 <b>Новинка в {store['name']}!</b>\n\n"
+                    f"🏷 <b>{product['name']}</b>\n"
+                    f"💰 {product['price']:,.0f} ₸\n"
+                    f"📂 {product['category']}\n\n"
+                    f"👇 Оформить заказ и примерить вещь можно в нашем боте:"
+                ),
+                parse_mode="HTML",
+                reply_markup=kb.as_markup()
+            )
+        except Exception as e:
+            await message.answer(f"⚠️ Товар добавлен, но не удалось опубликовать в канал: {e}")
 
     await message.answer(f"✅ Товар <b>{product['name']}</b> добавлен!", parse_mode="HTML", reply_markup=shop_main_menu())
 
@@ -218,10 +249,11 @@ async def shop_settings(callback: CallbackQuery, store: dict):
         await callback.answer("⛔️ Нет доступа", show_alert=True)
         return
     from keyboards.shop_kb import shop_settings_menu
+    channel_info = f"\n📢 Канал: {store.get('channel_id')}" if store.get("is_vip") and store.get("channel_id") else ""
     await callback.message.edit_text(
-        f"⚙️ <b>Настройки</b>\n🏪 {store['name']}\n📱 Kaspi: {store.get('kaspi_phone') or 'не указан'}",
+        f"⚙️ <b>Настройки</b>\n🏪 {store['name']}\n📱 Kaspi: {store.get('kaspi_phone') or 'не указан'}{channel_info}",
         parse_mode="HTML",
-        reply_markup=shop_settings_menu(store["id"]),
+        reply_markup=shop_settings_menu(store["id"], is_vip=store.get("is_vip", False)),
     )
 
 
@@ -259,8 +291,76 @@ async def edit_payment_kaspi_pay(message: Message, state: FSMContext, store: dic
     await state.clear()
     await message.answer("✅ Настройки обновлены!", reply_markup=shop_main_menu())
 
+# ─── Edit Channel (VIP) ────────────────────────────────────────────────────────
+
+@router.callback_query(F.data == "shop:edit_channel")
+async def edit_channel(callback: CallbackQuery, state: FSMContext, store: dict):
+    if not is_owner(callback.from_user.id, store) or not store.get("is_vip"):
+        await callback.answer("⛔️ Нет доступа", show_alert=True)
+        return
+    await state.set_state(EditChannel.channel_id)
+    await callback.message.edit_text(
+        "📢 Введите <b>ID канала</b> (например, <code>@my_shop_kz</code> или <code>-1001234567890</code>)\n\n"
+        "⚠️ <b>Важно:</b> Сначала добавьте бота в этот канал как администратора с правом публиковать сообщения.\n"
+        "Отправьте `-`, чтобы отключить публикацию в канал.",
+        parse_mode="HTML", reply_markup=cancel_kb()
+    )
+
+@router.message(EditChannel.channel_id)
+async def edit_channel_id(message: Message, state: FSMContext, store: dict, bot: Bot):
+    val = message.text.strip()
+    if val != "-":
+        # Check permissions
+        try:
+            await bot.send_chat_action(chat_id=val, action="typing")
+        except Exception:
+            await message.answer("❌ Бот не имеет доступа к этому каналу. Добавьте его в администраторы и повторите попытку.")
+            return
+            
+        update_store(store["id"], {"channel_id": val})
+        await message.answer(f"✅ Канал {val} успешно подключен!", reply_markup=shop_main_menu())
+    else:
+        update_store(store["id"], {"channel_id": None})
+        await message.answer("✅ Авто-публикация в канал отключена.", reply_markup=shop_main_menu())
+    
+    await state.clear()
+
 
 # ─── Order confirmation (shop owner) ──────────────────────────────────────────
+
+@router.callback_query(F.data.startswith("order:buyer_profile:"))
+async def show_buyer_profile(callback: CallbackQuery, store: dict):
+    if not is_owner(callback.from_user.id, store):
+        await callback.answer("⛔️ Нет доступа", show_alert=True)
+        return
+        
+    order_id = callback.data.split(":")[2]
+    order = get_order_by_id(order_id)
+    if not order:
+        await callback.answer("Заказ не найден")
+        return
+        
+    buyer_id = order["buyer_telegram_id"]
+    from services.supabase_service import get_buyer_order_history
+    history = get_buyer_order_history(store["id"], buyer_id)
+    
+    if history["is_first_time"]:
+        text = "👤 <b>Портрет клиента:</b>\n\n🌟 <i>Это новый клиент! Первая покупка.</i>"
+    else:
+        text = (
+            f"👤 <b>Портрет клиента:</b>\n\n"
+            f"⭐️ <i>Постоянный клиент!</i>\n"
+            f"🛍 Всего покупок: <b>{history['total_orders']}</b>\n"
+            f"💰 Общая сумма: <b>{history['total_spent']:,.0f} ₸</b>\n"
+        )
+        if history["last_order_date"]:
+            from datetime import datetime
+            dt = datetime.fromisoformat(history["last_order_date"].replace("Z", "+00:00"))
+            text += f"📅 Последняя покупка: <b>{dt.strftime('%d.%m.%Y')}</b>"
+            
+    await callback.answer()
+    await callback.message.reply(text, parse_mode="HTML")
+
 
 @router.callback_query(F.data.startswith("order:confirm:"))
 async def confirm_order(callback: CallbackQuery, store: dict):
@@ -278,6 +378,30 @@ async def confirm_order(callback: CallbackQuery, store: dict):
         await callback.bot.send_message(order["buyer_telegram_id"], "🎉 Ваш заказ подтверждён! Ожидайте доставку.")
     except Exception:
         pass
+
+    # Process Referral Reward
+    try:
+        from services.supabase_service import get_buyer, create_promocode, mark_referral_rewarded
+        buyer = get_buyer(store["id"], order["buyer_telegram_id"])
+        
+        if buyer and buyer.get("referred_by") and not buyer.get("referral_rewarded"):
+            referrer_id = buyer["referred_by"]
+            create_promocode(store["id"], referrer_id, 50)
+            mark_referral_rewarded(buyer["id"])
+            
+            try:
+                await callback.bot.send_message(
+                    referrer_id,
+                    f"🎉 <b>Отличные новости!</b>\n\n"
+                    f"Подруга, которую вы пригласили, успешно оформила свой первый заказ!\n"
+                    f"Вам начислен <b>промокод на скидку 50%</b>.\n"
+                    f"Он применится автоматически при вашей следующей покупке в магазине {store['name']}! 🎁",
+                    parse_mode="HTML"
+                )
+            except Exception:
+                pass
+    except Exception as e:
+        print(f"Failed to process referral reward: {e}")
 
 
 @router.callback_query(F.data.startswith("order:reject:"))

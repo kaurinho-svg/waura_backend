@@ -226,3 +226,85 @@ def get_store_analytics(store_id: str) -> dict:
                 stats["total_revenue"] += float(product_prices.get(order["product_id"], 0))
 
     return stats
+
+
+# ─── REFERRALS & PROMOCODES ───────────────────────────────────────────────────
+
+def get_buyer(store_id: str, telegram_id: int) -> Optional[dict]:
+    res = supabase.from_("bot_buyers").select("*").eq("store_id", store_id).eq("telegram_id", telegram_id).maybe_single().execute()
+    return res.data
+
+def mark_referral_rewarded(buyer_id: str) -> None:
+    supabase.from_("bot_buyers").update({"referral_rewarded": True}).eq("id", buyer_id).execute()
+
+def create_promocode(store_id: str, telegram_id: int, discount_percent: int = 50) -> dict:
+    res = supabase.from_("bot_promocodes").insert({
+        "store_id": store_id,
+        "buyer_telegram_id": telegram_id,
+        "discount_percent": discount_percent
+    }).execute()
+    return res.data[0]
+
+def get_unused_promocode(store_id: str, telegram_id: int) -> Optional[dict]:
+    res = supabase.from_("bot_promocodes").select("*").eq("store_id", store_id).eq("buyer_telegram_id", telegram_id).eq("is_used", False).order("created_at", desc=True).limit(1).execute()
+    return res.data[0] if res.data else None
+
+def mark_promocode_used(promocode_id: str) -> None:
+    supabase.from_("bot_promocodes").update({"is_used": True}).eq("id", promocode_id).execute()
+
+# ─── ABANDONED CARTS ──────────────────────────────────────────────────────────
+
+def get_abandoned_pending_orders(minutes: int = 30) -> list:
+    from datetime import datetime, timezone, timedelta
+    threshold = datetime.now(timezone.utc) - timedelta(minutes=minutes)
+    res = supabase.from_("bot_orders").select("*, bot_products(name, store_id, bot_stores(telegram_id, bot_token, name))").eq("status", "pending").eq("pending_warned", False).execute()
+    
+    abandoned = []
+    for order in (res.data or []):
+        created_str = order.get("created_at")
+        if not created_str:
+            continue
+        created_at_dt = datetime.fromisoformat(created_str.replace("Z", "+00:00"))
+        if created_at_dt < threshold:
+            abandoned.append(order)
+    return abandoned
+
+def mark_order_pending_warned(order_id: str) -> None:
+    supabase.from_("bot_orders").update({"pending_warned": True}).eq("id", order_id).execute()
+
+# ─── CRM ──────────────────────────────────────────────────────────────────────
+
+def get_buyer_order_history(store_id: str, buyer_telegram_id: int) -> dict:
+    """Calculates order history for a buyer in a specific store."""
+    history = {
+        "total_spent": 0.0,
+        "total_orders": 0,
+        "last_order_date": None,
+        "is_first_time": True
+    }
+    
+    products = get_products_by_store(store_id)
+    product_ids = [p["id"] for p in products]
+    product_prices = {p["id"]: p["price"] for p in products}
+
+    if not product_ids:
+        return history
+
+    res = (supabase.from_("bot_orders")
+           .select("product_id, created_at")
+           .eq("buyer_telegram_id", buyer_telegram_id)
+           .eq("status", "confirmed")
+           .in_("product_id", product_ids)
+           .order("created_at", desc=True)
+           .execute())
+    
+    orders = res.data or []
+    if orders:
+        history["is_first_time"] = False
+        history["total_orders"] = len(orders)
+        history["last_order_date"] = orders[0]["created_at"]
+        
+        for o in orders:
+            history["total_spent"] += float(product_prices.get(o["product_id"], 0))
+            
+    return history

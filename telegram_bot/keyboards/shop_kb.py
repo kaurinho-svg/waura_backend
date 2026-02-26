@@ -30,9 +30,11 @@ def shop_product_actions(product_id: str) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def shop_settings_menu(store_id: str) -> InlineKeyboardMarkup:
+def shop_settings_menu(store_id: str, is_vip: bool = False) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text="💳 Изменить реквизиты", callback_data="shop:edit_payment")
+    if is_vip:
+        builder.button(text="📢 Подключить канал", callback_data="shop:edit_channel")
     builder.button(text="🔙 Назад", callback_data="shop:main")
     builder.adjust(1)
     return builder.as_markup()
@@ -52,10 +54,12 @@ def confirm_delete_kb(product_id: str) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def order_action_kb(order_id: str) -> InlineKeyboardMarkup:
+def order_action_kb(order_id: str, is_vip: bool = False) -> InlineKeyboardMarkup:
     """Keyboard for shop owner to confirm or reject an order."""
     builder = InlineKeyboardBuilder()
+    if is_vip:
+        builder.button(text="👤 Профиль клиента", callback_data=f"order:buyer_profile:{order_id}")
     builder.button(text="✅ Подтвердить", callback_data=f"order:confirm:{order_id}")
     builder.button(text="❌ Отклонить", callback_data=f"order:reject:{order_id}")
-    builder.adjust(2)
+    builder.adjust(1 if is_vip else 2, 2)
     return builder.as_markup()

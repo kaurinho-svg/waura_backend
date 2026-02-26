@@ -7,7 +7,8 @@ from keyboards.buyer_kb import sizes_kb, payment_kb
 from services.supabase_service import (
     get_product_by_id, get_sizes_by_product, get_store_by_telegram_id,
     create_order, update_order_payment_screenshot, get_order_by_id,
-    decrement_size_quantity, get_store_admins
+    decrement_size_quantity, get_store_admins,
+    get_unused_promocode, mark_promocode_used
 )
 from keyboards.shop_kb import order_action_kb
 
@@ -64,6 +65,18 @@ async def order_size_selected(callback: CallbackQuery, state: FSMContext):
     else:
         payment_text = "💳 Уточните реквизиты у магазина"
 
+    # Check for referral promo code
+    original_price = float(p['price'])
+    final_price = original_price
+    discount_text = ""
+    
+    promo = get_unused_promocode(store_info.get("id"), callback.from_user.id)
+    if promo:
+        discount = promo.get("discount_percent", 50)
+        final_price = original_price * (100 - discount) / 100
+        discount_text = f"🎁 <b>Применена скидка {discount}% (Приведи подругу)!</b>\n"
+        mark_promocode_used(promo["id"])
+
     await state.set_state(OrderState.waiting_screenshot)
     await state.update_data(order_id=order_id)
 
@@ -71,7 +84,9 @@ async def order_size_selected(callback: CallbackQuery, state: FSMContext):
         f"🛒 <b>Ваш заказ оформлен!</b>\n\n"
         f"🏷 Товар: {p['name']}\n"
         f"📏 Размер: {size}\n"
-        f"💰 Сумма: <b>{p['price']} ₸</b>\n\n"
+        f"💰 К оплате: <b>{final_price:,.0f} ₸</b> "
+        f"{f'<s>{original_price:,.0f} ₸</s>' if discount_text else ''}\n"
+        f"{discount_text}\n"
         f"📦 Магазин: {store_name}\n"
         f"{payment_text}\n\n"
         f"После оплаты отправьте <b>скриншот подтверждения</b>.",
@@ -144,7 +159,7 @@ async def order_screenshot_received(message: Message, state: FSMContext, bot: Bo
                         photo=file_id,
                         caption=caption,
                         parse_mode="HTML",
-                        reply_markup=order_action_kb(order_id),
+                        reply_markup=order_action_kb(order_id, is_vip=store_info.get("is_vip", False)),
                     )
                 except Exception as inner_e:
                     print(f"Failed to notify admin {admin_id}: {inner_e}")

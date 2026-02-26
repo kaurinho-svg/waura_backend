@@ -66,8 +66,66 @@ async def check_subscriptions(bots: dict[str, Bot]):
                 break
 
 
+async def check_abandoned_carts(bots: dict[str, Bot]):
+    """Finds orders that are pending for >30 mins and sends a reminder."""
+    from services.supabase_service import get_abandoned_pending_orders, mark_order_pending_warned
+    
+    try:
+        abandoned_orders = get_abandoned_pending_orders(minutes=30)
+    except Exception as e:
+        logger.error(f"Abandoned carts check failed: {e}")
+        return
+
+    for order in abandoned_orders:
+        product = order.get("bot_products") or {}
+        store_info = product.get("bot_stores") or {}
+        bot = bots.get(store_info.get("id"))
+        if not bot:
+            continue
+            
+        buyer_id = order.get("buyer_telegram_id")
+        if not buyer_id:
+            continue
+            
+        try:
+            from keyboards.buyer_kb import payment_kb
+            kaspi_phone = store_info.get("kaspi_phone", "")
+            kaspi_pay_url = store_info.get("kaspi_pay_url", "")
+            
+            if kaspi_pay_url:
+                payment_text = f"💳 Оплата через Kaspi Pay (по кнопке ниже)"
+            elif kaspi_phone:
+                payment_text = f"📱 Kaspi перевод: <b>{kaspi_phone}</b>"
+            else:
+                payment_text = "💳 Уточните реквизиты у магазина"
+
+            await bot.send_message(
+                chat_id=buyer_id,
+                text=(
+                    f"⚠️ <b>Вы не завершили покупку!</b>\n\n"
+                    f"Товар <b>{product.get('name', 'из корзины')}</b> может быть распродан.\n\n"
+                    f"{payment_text}\n"
+                    f"<i>Ждем ваш скриншот подтверждения перевода!</i> 👇"
+                ),
+                parse_mode="HTML",
+                reply_markup=payment_kb(order["id"], kaspi_pay_url=kaspi_pay_url)
+            )
+            mark_order_pending_warned(order["id"])
+            logger.info(f"Sent abandoned cart warning for order {order['id']}")
+        except Exception as e:
+            logger.warning(f"Failed to send abandoned cart warning to {buyer_id}: {e}")
+
+
+async def run_abandoned_carts_scheduler(bots: dict[str, Bot]):
+    """Runs abandoned carts check every 5 minutes."""
+    while True:
+        await check_abandoned_carts(bots)
+        await asyncio.sleep(300)
+
+
 async def run_scheduler(bots: dict[str, Bot]):
     """Runs periodic tasks every hour."""
+    asyncio.create_task(run_abandoned_carts_scheduler(bots))
     logger.info("⏰ Scheduler started")
     while True:
         await check_subscriptions(bots)
