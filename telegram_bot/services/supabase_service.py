@@ -131,6 +131,15 @@ def get_sizes_by_product(product_id: str) -> list:
     return res.data or []
 
 
+def get_size_by_id(size_id: str) -> Optional[dict]:
+    res = (supabase.from_("bot_product_sizes")
+           .select("*")
+           .eq("id", size_id)
+           .maybe_single()
+           .execute())
+    return res.data
+
+
 def add_size(product_id: str, size: str, quantity: int) -> dict:
     res = supabase.from_("bot_product_sizes").insert({
         "product_id": product_id,

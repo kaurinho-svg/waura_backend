@@ -8,7 +8,7 @@ from services.supabase_service import (
     get_product_by_id, get_sizes_by_product, get_store_by_telegram_id,
     create_order, update_order_payment_screenshot, get_order_by_id,
     decrement_size_quantity, get_store_admins,
-    get_unused_promocode, mark_promocode_used
+    get_unused_promocode, mark_promocode_used, get_size_by_id
 )
 from keyboards.shop_kb import order_action_kb
 
@@ -37,8 +37,15 @@ async def order_start(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("order:size:"))
 async def order_size_selected(callback: CallbackQuery, state: FSMContext):
     parts = callback.data.split(":")
-    product_id = parts[2]
-    size = parts[3]
+    size_id = parts[2]
+
+    size_obj = get_size_by_id(size_id)
+    if not size_obj:
+        await callback.answer("Размер не найден")
+        return
+        
+    product_id = size_obj["product_id"]
+    size = size_obj["size"]
 
     p = get_product_by_id(product_id)
     if not p:

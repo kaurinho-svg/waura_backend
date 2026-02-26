@@ -44,7 +44,7 @@ def sizes_kb(sizes: list, product_id: str) -> InlineKeyboardMarkup:
     for s in sizes:
         builder.button(
             text=f"{s['size']} (осталось: {s['quantity']})",
-            callback_data=f"order:size:{product_id}:{s['size']}"
+            callback_data=f"order:size:{s['id']}"
         )
     builder.button(text="❌ Отмена", callback_data="catalog:all")
     builder.adjust(3)
