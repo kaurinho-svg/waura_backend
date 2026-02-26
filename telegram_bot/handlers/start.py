@@ -83,9 +83,9 @@ async def get_referral_link(callback: CallbackQuery, bot: Bot):
     ref_link = f"t.me/{bot_username}?start=ref_{user_id}"
     
     await callback.message.answer(
-        f"🎉 <b>Скидка 50% для вас и вашей подруги!</b>\n\n"
-        f"Отправьте ей эту ссылку:\n<code>{ref_link}</code>\n\n"
-        f"Как только она сделает первый заказ, вам автоматически придет персональный промокод на скидку 50%! 🎁",
+        f"🎉 <b>Скидка 50% для вас и ваших друзей!</b>\n\n"
+        f"Отправьте другу (или подруге) эту ссылку:\n<code>{ref_link}</code>\n\n"
+        f"Как только приглашенный вами человек сделает первый заказ, вам автоматически придет персональный промокод на скидку 50%! 🎁",
         parse_mode="HTML"
     )
     await callback.answer()
