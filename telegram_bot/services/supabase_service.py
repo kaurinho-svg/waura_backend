@@ -266,7 +266,7 @@ def mark_promocode_used(promocode_id: str) -> None:
 def get_abandoned_pending_orders(minutes: int = 30) -> list:
     from datetime import datetime, timezone, timedelta
     threshold = datetime.now(timezone.utc) - timedelta(minutes=minutes)
-    res = supabase.from_("bot_orders").select("*, bot_products(name, store_id, bot_stores(telegram_id, bot_token, name))").eq("status", "pending").eq("pending_warned", False).execute()
+    res = supabase.from_("bot_orders").select("*, bot_products(name, store_id, bot_stores(id, telegram_id, bot_token, name, kaspi_phone, kaspi_pay_url))").eq("status", "pending").eq("pending_warned", False).execute()
     
     abandoned = []
     for order in (res.data or []):
