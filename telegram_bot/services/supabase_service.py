@@ -102,7 +102,7 @@ def get_categories_for_store(store_id: str) -> list[str]:
 
 def get_product_by_id(product_id: str) -> Optional[dict]:
     res = (supabase.from_("bot_products")
-           .select("*, bot_stores(name, kaspi_phone, telegram_id)")
+           .select("*, bot_stores(id, name, kaspi_phone, telegram_id, kaspi_pay_url, is_vip)")
            .eq("id", product_id)
            .maybe_single()
            .execute())
@@ -187,7 +187,7 @@ def update_order_payment_screenshot(order_id: str, file_id: str) -> None:
 
 def get_order_by_id(order_id: str) -> Optional[dict]:
     res = (supabase.from_("bot_orders")
-           .select("*, bot_products(name, store_id, bot_stores(telegram_id, name, kaspi_phone))")
+           .select("*, bot_products(name, store_id, bot_stores(id, telegram_id, name, kaspi_phone, is_vip))")
            .eq("id", order_id)
            .maybe_single()
            .execute())
