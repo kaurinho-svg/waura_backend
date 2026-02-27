@@ -89,3 +89,16 @@ async def get_referral_link(callback: CallbackQuery, bot: Bot):
         parse_mode="HTML"
     )
     await callback.answer()
+
+# Handle "Main Menu" nav button from anywhere in the bot
+@router.callback_query(F.data == "nav:main_menu")
+async def go_to_main_menu(callback: CallbackQuery, store: dict):
+    await callback.message.answer(
+        f"🏠 <b>Главное меню</b>",
+        reply_markup=main_menu_kb(
+            is_premium=store.get("is_premium", False),
+            is_vip=store.get("is_vip", False)
+        ),
+        parse_mode="HTML",
+    )
+    await callback.answer()

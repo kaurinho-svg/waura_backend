@@ -164,13 +164,18 @@ def decrement_size_quantity(product_id: str, size: str) -> None:
 
 # ─── ORDERS ───────────────────────────────────────────────────────────────────
 
-def create_order(buyer_telegram_id: int, product_id: str, size: str) -> dict:
-    res = supabase.from_("bot_orders").insert({
+def create_order(buyer_telegram_id: int, product_id: str, size: str,
+                 delivery_type: str = "pickup", delivery_address: str | None = None) -> dict:
+    row = {
         "buyer_telegram_id": buyer_telegram_id,
         "product_id": product_id,
         "size": size,
         "status": "pending",
-    }).execute()
+        "delivery_type": delivery_type,
+    }
+    if delivery_address:
+        row["delivery_address"] = delivery_address
+    res = supabase.from_("bot_orders").insert(row).execute()
     return res.data[0]
 
 
