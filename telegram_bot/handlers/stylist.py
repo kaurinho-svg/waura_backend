@@ -5,8 +5,8 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, CallbackQuery
 
-from keyboards.shop_kb import cancel_kb
-from keyboards.buyer_kb import product_detail_kb
+from keyboards.shop_kb import cancel_kb as admin_cancel_kb
+from keyboards.buyer_kb import product_detail_kb, buyer_cancel_kb
 from services.supabase_service import get_products_by_store, get_product_by_id
 from services.gemini_service import suggest_outfit
 
@@ -56,7 +56,7 @@ async def stylist_start(event: Message | CallbackQuery, state: FSMContext, store
         "Отправьте мне ваше селфи или фото в полный рост (где хорошо видно лицо и фигуру), "
         "и я подберу вам идеальный образ из нашего ассортимента!",
         parse_mode="HTML",
-        reply_markup=cancel_kb()
+        reply_markup=buyer_cancel_kb()
     )
 
 @router.message(StylistState.waiting_photo, F.photo)

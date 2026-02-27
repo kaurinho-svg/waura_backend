@@ -8,6 +8,13 @@ def main_menu_btn(builder: InlineKeyboardBuilder):
     builder.button(text="🏠 Главное меню", callback_data="nav:main_menu")
 
 
+def buyer_cancel_kb() -> InlineKeyboardMarkup:
+    """Cancel button for buyers — goes to main buyer menu, NOT admin panel."""
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🔙 Главное меню", callback_data="nav:main_menu")
+    return builder.as_markup()
+
+
 def categories_kb(categories: list[str]) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     for cat in categories:
