@@ -123,10 +123,58 @@ async def run_abandoned_carts_scheduler(bots: dict[str, Bot]):
         await asyncio.sleep(300)
 
 
+async def send_monthly_report(bots: dict[str, Bot]):
+    """
+    Sends a monthly stats report to SUPER_ADMIN_IDS on the 1st of each month.
+    Uses the first available bot in the pool to send the message.
+    """
+    from config import SUPER_ADMIN_IDS
+    from handlers.owner_stats import get_all_stores_stats, build_stats_text
+
+    if not SUPER_ADMIN_IDS or not bots:
+        return
+
+    # Use any available bot to send the message
+    bot = next(iter(bots.values()))
+    now = datetime.now(timezone.utc)
+    month_name = now.strftime("%B %Y")
+
+    stores = get_all_stores_stats()
+    text = build_stats_text(stores, period_label=month_name)
+
+    for admin_id in SUPER_ADMIN_IDS:
+        try:
+            await bot.send_message(admin_id, f"📅 <b>Ежемесячный отчёт</b>\n\n{text}", parse_mode="HTML")
+            logger.info(f"Monthly report sent to {admin_id}")
+        except Exception as e:
+            logger.warning(f"Failed to send monthly report to {admin_id}: {e}")
+
+
+async def run_monthly_report_scheduler(bots: dict[str, Bot]):
+    """Fires on the 1st of each month at 09:00 UTC."""
+    while True:
+        now = datetime.now(timezone.utc)
+        # Calculate seconds until next 1st of month at 09:00 UTC
+        if now.day == 1 and now.hour < 9:
+            next_run = now.replace(hour=9, minute=0, second=0, microsecond=0)
+        else:
+            # Move to 1st of next month
+            if now.month == 12:
+                next_run = now.replace(year=now.year + 1, month=1, day=1, hour=9, minute=0, second=0, microsecond=0)
+            else:
+                next_run = now.replace(month=now.month + 1, day=1, hour=9, minute=0, second=0, microsecond=0)
+
+        wait_seconds = (next_run - now).total_seconds()
+        logger.info(f"📅 Next monthly report in {wait_seconds/3600:.1f} hours")
+        await asyncio.sleep(wait_seconds)
+        await send_monthly_report(bots)
+
+
 async def run_scheduler(bots: dict[str, Bot]):
     """Runs periodic tasks every hour."""
     asyncio.create_task(run_abandoned_carts_scheduler(bots))
-    logger.info("⏰ Scheduler started")
+    asyncio.create_task(run_monthly_report_scheduler(bots))
+    logger.info("⏰ Scheduler started (subscriptions + abandoned carts + monthly report)")
     while True:
         await check_subscriptions(bots)
         await asyncio.sleep(3600)  # check every hour
