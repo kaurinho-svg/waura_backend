@@ -279,7 +279,13 @@ async def order_screenshot_received(message: Message, state: FSMContext, bot: Bo
 
         if admins_to_notify:
             buyer_username = message.from_user.username
-            buyer_info = f"@{buyer_username}" if buyer_username else str(message.from_user.id)
+            buyer_tg = f"@{buyer_username}" if buyer_username else str(message.from_user.id)
+
+            # Fetch saved buyer name
+            from services.buyer_service import get_buyer
+            buyer_record = get_buyer(store_id, message.from_user.id)
+            buyer_name = (buyer_record or {}).get("name", "")
+            buyer_info = f"{buyer_name} ({buyer_tg})" if buyer_name else buyer_tg
 
             caption = (
                 f"🛒 <b>Новый заказ!</b>\n\n"

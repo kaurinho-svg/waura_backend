@@ -1,6 +1,6 @@
 """
 Tracks which buyers have interacted with each bot (store).
-Used for broadcast messages.
+Used for broadcast messages and buyer profiles.
 """
 from services.supabase_service import supabase
 from typing import Optional
@@ -24,6 +24,24 @@ def register_buyer(store_id: str, telegram_id: int, username: Optional[str] = No
             supabase.from_("bot_buyers").insert(data).execute()
     except Exception as e:
         print(f"register_buyer error: {e}")
+
+
+def get_buyer(store_id: str, telegram_id: int) -> Optional[dict]:
+    """Returns buyer record for this store, or None if not found."""
+    try:
+        res = supabase.from_("bot_buyers").select("*").eq("store_id", store_id).eq("telegram_id", telegram_id).maybe_single().execute()
+        return res.data
+    except Exception as e:
+        print(f"get_buyer error: {e}")
+        return None
+
+
+def save_buyer_name(store_id: str, telegram_id: int, name: str) -> None:
+    """Saves buyer's real name to their bot_buyers record."""
+    try:
+        supabase.from_("bot_buyers").update({"name": name}).eq("store_id", store_id).eq("telegram_id", telegram_id).execute()
+    except Exception as e:
+        print(f"save_buyer_name error: {e}")
 
 
 def get_buyers_for_store(store_id: str) -> list:
