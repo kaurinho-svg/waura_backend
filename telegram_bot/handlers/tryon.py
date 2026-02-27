@@ -3,7 +3,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, CallbackQuery
 
-from keyboards.buyer_kb import product_detail_kb
+from keyboards.buyer_kb import product_detail_kb, buyer_cancel_kb
 from services.supabase_service import get_product_by_id
 from services.tryon_service import upload_image_to_backend, do_tryon
 
@@ -41,6 +41,7 @@ async def tryon_start(callback: CallbackQuery, state: FSMContext, store: dict):
         "• Нейтральный фон\n"
         "• Хорошее освещение",
         parse_mode="HTML",
+        reply_markup=buyer_cancel_kb(),
     )
 
 
