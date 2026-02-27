@@ -55,7 +55,7 @@ def sizes_kb(sizes: list, product_id: str) -> InlineKeyboardMarkup:
             text=f"{s['size']} (осталось: {s['quantity']})",
             callback_data=f"order:size:{s['id']}"
         )
-    builder.button(text="❌ Отмена", callback_data="catalog:all")
+    builder.button(text="🔙 Назад к товару", callback_data=f"catalog:product:{product_id}")
     main_menu_btn(builder)
     builder.adjust(3, 1, 1)
     return builder.as_markup()
@@ -66,7 +66,7 @@ def delivery_choice_kb() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text="🚚 Доставка (укажу адрес)", callback_data="order:delivery:delivery")
     builder.button(text="🏪 Самовывоз", callback_data="order:delivery:pickup")
-    builder.button(text="❌ Отмена", callback_data="catalog:all")
+    builder.button(text="🔙 Назад к каталогу", callback_data="catalog:all")
     main_menu_btn(builder)
     builder.adjust(1)
     return builder.as_markup()
@@ -81,7 +81,7 @@ def payment_kb(order_id: str, kaspi_pay_url: Optional[str] = None) -> InlineKeyb
     if kaspi_pay_url:
         builder.button(text="💳 Оплатить через Kaspi Pay", url=kaspi_pay_url)
     builder.button(text="✅ Я оплатил — отправить скрин", callback_data=f"order:paid:{order_id}")
-    builder.button(text="❌ Отмена", callback_data="catalog:all")
+    builder.button(text="🔙 Назад к каталогу", callback_data="catalog:all")
     main_menu_btn(builder)
     builder.adjust(1)
     return builder.as_markup()
