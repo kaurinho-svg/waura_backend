@@ -59,9 +59,14 @@ class NanoBananaService:
             raise HTTPException(status_code=400, detail="Both image urls are required")
 
         # Choose model based on tier
-        # Premium/VIP → nano-banana-2/edit | Basic → nano-banana/edit
-        primary_model = "fal-ai/nano-banana-2/edit" if is_premium else "fal-ai/nano-banana/edit"
-        print(f"DEBUG: VTON starting (is_premium={is_premium}, model={primary_model})")
+        # VIP → nano-banana-pro/edit | Premium → nano-banana-2/edit | Basic → nano-banana/edit
+        if is_vip:
+            primary_model = "fal-ai/nano-banana-pro/edit"
+        elif is_premium:
+            primary_model = "fal-ai/nano-banana-2/edit"
+        else:
+            primary_model = "fal-ai/nano-banana/edit"
+        print(f"DEBUG: VTON starting (is_premium={is_premium}, is_vip={is_vip}, model={primary_model})")
 
         try:
             print(f"DEBUG: Calling {primary_model}...")

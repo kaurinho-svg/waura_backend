@@ -2,19 +2,19 @@ import httpx
 from config import BACKEND_URL
 
 
-async def do_tryon(user_image_url: str, clothing_image_url: str, is_premium: bool = False) -> str:
+async def do_tryon(user_image_url: str, clothing_image_url: str, is_premium: bool = False, is_vip: bool = False) -> str:
     """
-    Calls the existing FastAPI endpoint /api/v1/nano-banana/edit
-    and returns the result image URL.
-    - is_premium=True  → nano-banana-pro/edit (Premium / VIP tier)
-    - is_premium=False → nano-banana/edit      (Basic tier)
-    Raises ValueError if result has no image URL.
+    Calls the existing FastAPI endpoint /api/v1/nano-banana/edit.
+    - is_vip=True     → nano-banana-pro/edit  (VIP tier)
+    - is_premium=True → nano-banana-2/edit    (Premium tier)
+    - else            → nano-banana/edit       (Basic tier)
     """
     payload = {
         "user_image_url": user_image_url,
         "clothing_image_url": clothing_image_url,
         "style_prompt": "",
         "is_premium": is_premium,
+        "is_vip": is_vip,
     }
 
     async with httpx.AsyncClient(timeout=120.0) as client:

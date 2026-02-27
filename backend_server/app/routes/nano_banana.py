@@ -17,6 +17,7 @@ class NanaBananaEditRequest(BaseModel):
     style_prompt: Optional[str] = None  # Flutter sends this field
     category: Optional[str] = None
     is_premium: Optional[bool] = False
+    is_vip: Optional[bool] = False
     user_id: Optional[str] = None  # Supabase user ID for credit tracking
 
 
@@ -54,7 +55,8 @@ async def edit(req: NanaBananaEditRequest):
         user_image_url=req.user_image_url,
         clothing_image_url=req.clothing_image_url,
         prompt="",
-        is_premium=req.is_premium or False
+        is_premium=req.is_premium or False,
+        is_vip=req.is_vip or False,
     )
 
     # Attach remaining credits to response
