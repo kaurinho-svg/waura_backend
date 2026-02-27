@@ -58,12 +58,13 @@ class NanoBananaService:
         if not user_image_url or not clothing_image_url:
             raise HTTPException(status_code=400, detail="Both image urls are required")
 
-        print(f"DEBUG: VTON starting (is_premium={is_premium})")
+        # Choose model based on tier
+        # Premium/VIP → nano-banana-2/edit | Basic → nano-banana/edit
+        primary_model = "fal-ai/nano-banana-2/edit" if is_premium else "fal-ai/nano-banana/edit"
+        print(f"DEBUG: VTON starting (is_premium={is_premium}, model={primary_model})")
 
         try:
-            # Correct image editing model with PRO quality
-            model_id = "fal-ai/nano-banana-pro/edit"
-            print(f"DEBUG: MagicMirror calling {model_id}...")
+            print(f"DEBUG: Calling {primary_model}...")
 
             prompt_instruction = (
                 "Image 1: person.\n"
@@ -84,11 +85,10 @@ class NanoBananaService:
             print(f"DEBUG: Payload ready, calling model...")
 
             try:
-                result = fal_client.run(model_id, arguments=nano_payload)
+                result = fal_client.run(primary_model, arguments=nano_payload)
                 return result
             except Exception as e:
-                print(f"WARNING: Nano Banana PRO failed ({e}). Falling back to standard...")
-                nano_payload["image_guidance_scale"] = 2.0
+                print(f"WARNING: {primary_model} failed ({e}). Falling back to nano-banana/edit...")
                 result = fal_client.run("fal-ai/nano-banana/edit", arguments=nano_payload)
                 return result
 
