@@ -266,7 +266,11 @@ def _build_order_text(p: dict, size: str, store_name: str, kaspi_phone: str,
 
     # Payment instructions
     if kaspi_pay_url:
-        payment_line = ""
+        payment_line = (
+            f"\n\n💡 <b>После оплаты в Kaspi — обязательно вернитесь сюда</b>\n"
+            f"и нажмите кнопку <b>«✅ Я оплатил»</b> ниже, чтобы отправить скриншот.\n"
+            f"Без скриншота магазин не увидит вашу оплату!"
+        )
     elif kaspi_phone:
         payment_line = f"\n\n{t('payment_kaspi_phone', lang, phone=kaspi_phone)}"
     else:
@@ -280,8 +284,7 @@ def _build_order_text(p: dict, size: str, store_name: str, kaspi_phone: str,
         f"{delivery_line}"
         f"{discount_line}\n"
         f"{t('order_price', lang)}: <b>{final_price:,.0f} ₸</b>"
-        f"{payment_line}\n\n"
-        f"{t('payment_instructions', lang)}"
+        f"{payment_line}"
     )
 
 
