@@ -117,78 +117,125 @@ async def order_address_received(message: Message, state: FSMContext, store: dic
 async def _finalize_order(callback: CallbackQuery, state: FSMContext, data: dict,
                           store: dict, delivery_type: str, delivery_address: str | None):
     lang = _get_lang(callback.from_user.id, store)
-    product_id = data["product_id"]
-    size = data["size"]
+    try:
+        product_id = data.get("product_id")
+        size = data.get("size")
 
-    p = get_product_by_id(product_id)
-    if not p:
-        await callback.answer("Product not found")
-        return
+        if not product_id or not size:
+            await callback.message.answer("❌ Данные заказа потеряны. Начните заново.")
+            await callback.answer()
+            return
 
-    store_info = p.get("bot_stores") or {}
-    kaspi_phone = store_info.get("kaspi_phone", "")
-    kaspi_pay_url = store_info.get("kaspi_pay_url", "") or None
-    store_name = store_info.get("name", "")
+        p = get_product_by_id(product_id)
+        if not p:
+            await callback.message.answer(t("order_not_found", lang))
+            await callback.answer()
+            return
 
-    order = create_order(
-        buyer_telegram_id=callback.from_user.id,
-        product_id=product_id,
-        size=size,
-        delivery_type=delivery_type,
-        delivery_address=delivery_address,
-    )
-    order_id = order["id"]
+        store_info = p.get("bot_stores") or {}
+        kaspi_phone = store_info.get("kaspi_phone", "")
+        kaspi_pay_url = store_info.get("kaspi_pay_url", "") or None
+        store_name = store_info.get("name", "")
 
-    text = _build_order_text(p, size, store_name, kaspi_phone, kaspi_pay_url,
-                             store_info, callback.from_user.id,
-                             delivery_type, delivery_address, lang)
+        # Try with delivery fields first, fall back without them if columns missing
+        try:
+            order = create_order(
+                buyer_telegram_id=callback.from_user.id,
+                product_id=product_id,
+                size=size,
+                delivery_type=delivery_type,
+                delivery_address=delivery_address,
+            )
+        except Exception as e:
+            print(f"create_order error (trying without delivery fields): {e}")
+            # Fallback: create without delivery fields (if columns not in DB yet)
+            from services.supabase_service import supabase as _sb
+            res = _sb.from_("bot_orders").insert({
+                "buyer_telegram_id": callback.from_user.id,
+                "product_id": product_id,
+                "size": size,
+                "status": "pending",
+            }).execute()
+            order = res.data[0]
 
-    await state.set_state(OrderState.waiting_screenshot)
-    await state.update_data(order_id=order_id)
+        order_id = order["id"]
+        text = _build_order_text(p, size, store_name, kaspi_phone, kaspi_pay_url,
+                                 store_info, callback.from_user.id,
+                                 delivery_type, delivery_address, lang)
 
-    await callback.message.answer(
-        text, parse_mode="HTML",
-        reply_markup=payment_kb(order_id, lang=lang, kaspi_pay_url=kaspi_pay_url)
-    )
-    await callback.answer()
+        await state.set_state(OrderState.waiting_screenshot)
+        await state.update_data(order_id=order_id)
+
+        await callback.message.answer(
+            text, parse_mode="HTML",
+            reply_markup=payment_kb(order_id, lang=lang, kaspi_pay_url=kaspi_pay_url)
+        )
+    except Exception as e:
+        print(f"_finalize_order error: {e}")
+        await callback.message.answer(
+            "❌ Произошла ошибка при оформлении заказа. Попробуйте ещё раз."
+        )
+    finally:
+        await callback.answer()
 
 
 async def _finalize_order_msg(message: Message, state: FSMContext, data: dict,
                               store: dict, delivery_type: str, delivery_address: str | None):
     lang = _get_lang(message.from_user.id, store)
-    product_id = data["product_id"]
-    size = data["size"]
+    try:
+        product_id = data.get("product_id")
+        size = data.get("size")
 
-    p = get_product_by_id(product_id)
-    if not p:
-        await message.answer(t("order_not_found", lang))
-        return
+        if not product_id or not size:
+            await message.answer("❌ Данные заказа потеряны. Начните заново.")
+            return
 
-    store_info = p.get("bot_stores") or {}
-    kaspi_phone = store_info.get("kaspi_phone", "")
-    kaspi_pay_url = store_info.get("kaspi_pay_url", "") or None
-    store_name = store_info.get("name", "")
+        p = get_product_by_id(product_id)
+        if not p:
+            await message.answer(t("order_not_found", lang))
+            return
 
-    order = create_order(
-        buyer_telegram_id=message.from_user.id,
-        product_id=product_id,
-        size=size,
-        delivery_type=delivery_type,
-        delivery_address=delivery_address,
-    )
-    order_id = order["id"]
+        store_info = p.get("bot_stores") or {}
+        kaspi_phone = store_info.get("kaspi_phone", "")
+        kaspi_pay_url = store_info.get("kaspi_pay_url", "") or None
+        store_name = store_info.get("name", "")
 
-    text = _build_order_text(p, size, store_name, kaspi_phone, kaspi_pay_url,
-                             store_info, message.from_user.id,
-                             delivery_type, delivery_address, lang)
+        try:
+            order = create_order(
+                buyer_telegram_id=message.from_user.id,
+                product_id=product_id,
+                size=size,
+                delivery_type=delivery_type,
+                delivery_address=delivery_address,
+            )
+        except Exception as e:
+            print(f"create_order error (trying without delivery fields): {e}")
+            from services.supabase_service import supabase as _sb
+            res = _sb.from_("bot_orders").insert({
+                "buyer_telegram_id": message.from_user.id,
+                "product_id": product_id,
+                "size": size,
+                "status": "pending",
+            }).execute()
+            order = res.data[0]
 
-    await state.set_state(OrderState.waiting_screenshot)
-    await state.update_data(order_id=order_id)
+        order_id = order["id"]
+        text = _build_order_text(p, size, store_name, kaspi_phone, kaspi_pay_url,
+                                 store_info, message.from_user.id,
+                                 delivery_type, delivery_address, lang)
 
-    await message.answer(
-        text, parse_mode="HTML",
-        reply_markup=payment_kb(order_id, lang=lang, kaspi_pay_url=kaspi_pay_url)
-    )
+        await state.set_state(OrderState.waiting_screenshot)
+        await state.update_data(order_id=order_id)
+
+        await message.answer(
+            text, parse_mode="HTML",
+            reply_markup=payment_kb(order_id, lang=lang, kaspi_pay_url=kaspi_pay_url)
+        )
+    except Exception as e:
+        print(f"_finalize_order_msg error: {e}")
+        await message.answer(
+            "❌ Произошла ошибка при оформлении заказа. Попробуйте ещё раз."
+        )
 
 
 def _build_order_text(p: dict, size: str, store_name: str, kaspi_phone: str,
