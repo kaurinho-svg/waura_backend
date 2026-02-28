@@ -87,14 +87,33 @@ async def my_products(callback: CallbackQuery, store: dict):
     if not products:
         await callback.message.edit_text("📭 У вас пока нет товаров.", reply_markup=shop_main_menu())
         return
-    await callback.message.edit_text(
-        f"📦 Товары ({len(products)}):",
-        reply_markup=shop_products_menu(products),
-    )
+
+    await callback.message.answer(f"📦 <b>Ваши товары ({len(products)}):</b>", parse_mode="HTML")
+    for p in products:
+        caption = (
+            f"🏷 <b>{p['name']}</b>\n"
+            f"💰 {p['price']:,.0f} ₸\n"
+            f"📂 {p.get('category', '—')}\n"
+            f"{'✅ Активен' if p.get('is_active') else '❌ Скрыт'}"
+        )
+        if p.get("photo_url"):
+            await callback.message.answer_photo(
+                photo=p["photo_url"],
+                caption=caption,
+                parse_mode="HTML",
+                reply_markup=shop_product_actions(p["id"]),
+            )
+        else:
+            await callback.message.answer(
+                caption,
+                parse_mode="HTML",
+                reply_markup=shop_product_actions(p["id"]),
+            )
+    await callback.answer()
 
 
 @router.callback_query(F.data.startswith("shop:product:"))
-async def product_detail(callback: CallbackQuery, store: dict):
+async def product_detail_admin(callback: CallbackQuery, store: dict):
     if not is_owner(callback.from_user.id, store):
         await callback.answer("⛔️ Нет доступа", show_alert=True)
         return
@@ -103,11 +122,26 @@ async def product_detail(callback: CallbackQuery, store: dict):
     if not p:
         await callback.answer("Товар не найден")
         return
-    await callback.message.edit_text(
-        f"🏷 <b>{p['name']}</b>\n💰 {p['price']} ₸\n📂 {p.get('category', '—')}",
-        parse_mode="HTML",
-        reply_markup=shop_product_actions(product_id),
+    caption = (
+        f"🏷 <b>{p['name']}</b>\n"
+        f"💰 {p['price']:,.0f} ₸\n"
+        f"📂 {p.get('category', '—')}\n"
+        f"{'✅ Активен' if p.get('is_active') else '❌ Скрыт'}"
     )
+    if p.get("photo_url"):
+        await callback.message.answer_photo(
+            photo=p["photo_url"],
+            caption=caption,
+            parse_mode="HTML",
+            reply_markup=shop_product_actions(product_id),
+        )
+    else:
+        await callback.message.answer(
+            caption,
+            parse_mode="HTML",
+            reply_markup=shop_product_actions(product_id),
+        )
+    await callback.answer()
 
 
 @router.callback_query(F.data.startswith("shop:delete_product:"))

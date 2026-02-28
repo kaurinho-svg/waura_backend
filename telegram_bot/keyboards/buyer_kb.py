@@ -57,6 +57,26 @@ def products_list_kb(products: list, lang: str = "ru", offset: int = 0, limit: i
     return builder.as_markup()
 
 
+def product_card_kb(product_id: str, lang: str = "ru") -> InlineKeyboardMarkup:
+    """Compact keyboard shown under each photo card in the catalog listing."""
+    builder = InlineKeyboardBuilder()
+    builder.button(text=t("btn_tryon", lang), callback_data=f"tryon:start:{product_id}")
+    builder.button(text=t("btn_order", lang), callback_data=f"order:start:{product_id}")
+    builder.button(text="🔍 Подробнее", callback_data=f"catalog:product:{product_id}")
+    builder.adjust(2, 1)
+    return builder.as_markup()
+
+
+def load_more_kb(offset: int, lang: str = "ru") -> InlineKeyboardMarkup:
+    """'Load more' navigation button after showing a page of product cards."""
+    builder = InlineKeyboardBuilder()
+    builder.button(text=f"📦 {t('catalog_next', lang)}", callback_data=f"catalog:page:{offset}")
+    builder.button(text=t("catalog_to_categories", lang), callback_data="catalog:start")
+    main_menu_btn(builder, lang)
+    builder.adjust(1)
+    return builder.as_markup()
+
+
 def product_detail_kb(product_id: str, lang: str = "ru") -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text=t("btn_tryon", lang), callback_data=f"tryon:start:{product_id}")
