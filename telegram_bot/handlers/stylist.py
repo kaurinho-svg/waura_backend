@@ -29,7 +29,7 @@ async def stylist_start(event: Message | CallbackQuery, state: FSMContext, store
     buyer = get_buyer(store["id"], event.from_user.id)
     lang = get_lang(buyer)
 
-    if not store.get("is_premium"):
+    if not store.get("feature_stylist", store.get("is_premium") or store.get("is_vip")):
         text = t("stylist_premium_only", lang)
         if is_callback:
             await event.answer(text, show_alert=True)

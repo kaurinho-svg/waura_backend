@@ -34,10 +34,10 @@ async def broadcast_start(message: Message, state: FSMContext, store: dict):
         await message.answer("⛔️ Только владелец магазина может делать рассылку.")
         return
 
-    # Check for Premium subscription
-    if not store.get("is_premium"):
+    # Check feature flag (falls back to is_premium tier if not explicitly set)
+    if not store.get("feature_broadcast", store.get("is_premium")):
         await message.answer(
-            "💎 <b>Эта функция доступна только по Premium-подписке!</b>\n\n"
+            "💎 <b>Эта функция недоступна для вашего магазина.</b>\n\n"
             "Рассылки об акциях, скидках и новых поступлениях (команда /broadcast) "
             "позволяют мгновенно увеличить ваши продажи.\n\n"
             "Обратитесь к администратору для подключения Premium.",

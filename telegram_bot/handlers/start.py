@@ -17,13 +17,20 @@ class OnboardingState(StatesGroup):
     waiting_language = State()
 
 
-def main_menu_kb(lang: str = "ru", is_premium: bool = False, is_vip: bool = False):
+def main_menu_kb(lang: str = "ru", is_premium: bool = False, is_vip: bool = False,
+                 store: dict = None):
+    """Builds the main buyer menu based on per-store feature flags (or tier as fallback)."""
+    s = store or {}
+    # Feature flags override tier logic
+    show_stylist  = s.get("feature_stylist",  is_premium or is_vip)
+    show_referral = s.get("feature_referral", is_vip)
+
     builder = InlineKeyboardBuilder()
     builder.button(text=t("btn_catalog", lang), callback_data="catalog:start")
     builder.button(text=t("btn_categories", lang), callback_data="catalog:categories")
-    if is_premium:
+    if show_stylist:
         builder.button(text=t("btn_stylist", lang), callback_data="stylist:start")
-    if is_vip:
+    if show_referral:
         builder.button(text=t("btn_referral", lang), callback_data="referral:get_link")
     builder.adjust(2, 1)
     return builder.as_markup()
@@ -137,7 +144,8 @@ async def _show_main(message: Message, store: dict, lang: str, product_target: s
         reply_markup=main_menu_kb(
             lang=lang,
             is_premium=store.get("is_premium", False),
-            is_vip=store.get("is_vip", False)
+            is_vip=store.get("is_vip", False),
+            store=store,
         ),
         parse_mode="HTML",
     )
@@ -166,7 +174,8 @@ async def go_to_main_menu(callback: CallbackQuery, store: dict):
         reply_markup=main_menu_kb(
             lang=lang,
             is_premium=store.get("is_premium", False),
-            is_vip=store.get("is_vip", False)
+            is_vip=store.get("is_vip", False),
+            store=store,
         ),
         parse_mode="HTML",
     )
