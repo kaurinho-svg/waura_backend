@@ -5,12 +5,13 @@ from aiogram.types import Message, CallbackQuery
 
 from keyboards.buyer_kb import sizes_kb, payment_kb, delivery_choice_kb
 from services.supabase_service import (
-    get_product_by_id, get_sizes_by_product, get_store_by_telegram_id,
-    create_order, update_order_payment_screenshot, get_order_by_id,
-    decrement_size_quantity, get_store_admins,
-    get_unused_promocode, mark_promocode_used, get_size_by_id
+    get_product_by_id, get_sizes_by_product, create_order,
+    update_order_payment_screenshot, get_order_by_id,
+    get_store_admins, get_unused_promocode, mark_promocode_used, get_size_by_id
 )
 from keyboards.shop_kb import order_action_kb
+from services.buyer_service import get_buyer
+from locales import t, get_lang
 
 router = Router()
 
@@ -21,20 +22,26 @@ class OrderState(StatesGroup):
     waiting_screenshot = State()
 
 
+def _get_lang(user_id: int, store: dict) -> str:
+    buyer = get_buyer(store["id"], user_id)
+    return get_lang(buyer)
+
+
 # ─── Step 1: Select Size ────────────────────────────────────────────────────
 
 @router.callback_query(F.data.startswith("order:start:"))
-async def order_start(callback: CallbackQuery):
+async def order_start(callback: CallbackQuery, store: dict):
+    lang = _get_lang(callback.from_user.id, store)
     product_id = callback.data.split(":")[2]
     sizes = get_sizes_by_product(product_id)
 
     if not sizes:
-        await callback.message.answer("😔 К сожалению, все размеры распроданы.")
+        await callback.message.answer(t("sizes_unavailable", lang))
         return
 
     await callback.message.answer(
-        "📏 Выберите ваш размер:",
-        reply_markup=sizes_kb(sizes, product_id),
+        t("choose_size", lang),
+        reply_markup=sizes_kb(sizes, product_id, lang=lang),
     )
     await callback.answer()
 
@@ -42,13 +49,14 @@ async def order_start(callback: CallbackQuery):
 # ─── Step 2: Size selected → ask delivery/pickup ────────────────────────────
 
 @router.callback_query(F.data.startswith("order:size:"))
-async def order_size_selected(callback: CallbackQuery, state: FSMContext):
+async def order_size_selected(callback: CallbackQuery, state: FSMContext, store: dict):
+    lang = _get_lang(callback.from_user.id, store)
     parts = callback.data.split(":")
     size_id = parts[2]
 
     size_obj = get_size_by_id(size_id)
     if not size_obj:
-        await callback.answer("Размер не найден")
+        await callback.answer("Size not found")
         return
 
     product_id = size_obj["product_id"]
@@ -56,22 +64,16 @@ async def order_size_selected(callback: CallbackQuery, state: FSMContext):
 
     p = get_product_by_id(product_id)
     if not p:
-        await callback.answer("Товар не найден")
+        await callback.answer("Product not found")
         return
 
-    # Save product info into FSM state for next steps
     await state.set_state(OrderState.waiting_delivery_choice)
-    await state.update_data(
-        product_id=product_id,
-        size_id=size_id,
-        size=size,
-    )
+    await state.update_data(product_id=product_id, size_id=size_id, size=size)
 
     await callback.message.answer(
-        f"✅ Размер <b>{size}</b> выбран!\n\n"
-        "🚚 <b>Как вы хотите получить товар?</b>",
+        t("size_chosen", lang, size=size),
         parse_mode="HTML",
-        reply_markup=delivery_choice_kb(),
+        reply_markup=delivery_choice_kb(lang=lang),
     )
     await callback.answer()
 
@@ -79,20 +81,21 @@ async def order_size_selected(callback: CallbackQuery, state: FSMContext):
 # ─── Step 3a: Pickup selected → create order & show payment ─────────────────
 
 @router.callback_query(F.data == "order:delivery:pickup", OrderState.waiting_delivery_choice)
-async def order_pickup_selected(callback: CallbackQuery, state: FSMContext):
+async def order_pickup_selected(callback: CallbackQuery, state: FSMContext, store: dict):
     data = await state.get_data()
     await state.clear()
-    await _finalize_order(callback, state, data, delivery_type="pickup", delivery_address=None)
+    await _finalize_order(callback, state, data, store,
+                          delivery_type="pickup", delivery_address=None)
 
 
 # ─── Step 3b: Delivery selected → ask for address ───────────────────────────
 
 @router.callback_query(F.data == "order:delivery:delivery", OrderState.waiting_delivery_choice)
-async def order_delivery_selected(callback: CallbackQuery, state: FSMContext):
+async def order_delivery_selected(callback: CallbackQuery, state: FSMContext, store: dict):
+    lang = _get_lang(callback.from_user.id, store)
     await state.set_state(OrderState.waiting_delivery_address)
     await callback.message.answer(
-        "📍 Пожалуйста, укажите ваш <b>адрес доставки</b>:\n"
-        "<i>(Город, улица, дом, квартира)</i>",
+        t("ask_address", lang),
         parse_mode="HTML",
     )
     await callback.answer()
@@ -101,32 +104,31 @@ async def order_delivery_selected(callback: CallbackQuery, state: FSMContext):
 # ─── Step 3c: Address received → create order & show payment ────────────────
 
 @router.message(OrderState.waiting_delivery_address, F.text)
-async def order_address_received(message: Message, state: FSMContext):
+async def order_address_received(message: Message, state: FSMContext, store: dict):
     address = message.text.strip()
     data = await state.get_data()
     await state.clear()
-
-    # Wrap state so we can pass bot through a helper
-    await _finalize_order_msg(message, state, data, delivery_type="delivery", delivery_address=address)
+    await _finalize_order_msg(message, state, data, store,
+                              delivery_type="delivery", delivery_address=address)
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
 async def _finalize_order(callback: CallbackQuery, state: FSMContext, data: dict,
-                          delivery_type: str, delivery_address: str | None):
-    """Called when delivery choice is made via a callback (pickup)."""
+                          store: dict, delivery_type: str, delivery_address: str | None):
+    lang = _get_lang(callback.from_user.id, store)
     product_id = data["product_id"]
     size = data["size"]
 
     p = get_product_by_id(product_id)
     if not p:
-        await callback.answer("Товар не найден")
+        await callback.answer("Product not found")
         return
 
     store_info = p.get("bot_stores") or {}
     kaspi_phone = store_info.get("kaspi_phone", "")
     kaspi_pay_url = store_info.get("kaspi_pay_url", "") or None
-    store_name = store_info.get("name", "Магазин")
+    store_name = store_info.get("name", "")
 
     order = create_order(
         buyer_telegram_id=callback.from_user.id,
@@ -139,31 +141,33 @@ async def _finalize_order(callback: CallbackQuery, state: FSMContext, data: dict
 
     text = _build_order_text(p, size, store_name, kaspi_phone, kaspi_pay_url,
                              store_info, callback.from_user.id,
-                             delivery_type, delivery_address)
+                             delivery_type, delivery_address, lang)
 
     await state.set_state(OrderState.waiting_screenshot)
     await state.update_data(order_id=order_id)
 
-    await callback.message.answer(text, parse_mode="HTML",
-                                  reply_markup=payment_kb(order_id, kaspi_pay_url=kaspi_pay_url))
+    await callback.message.answer(
+        text, parse_mode="HTML",
+        reply_markup=payment_kb(order_id, lang=lang, kaspi_pay_url=kaspi_pay_url)
+    )
     await callback.answer()
 
 
 async def _finalize_order_msg(message: Message, state: FSMContext, data: dict,
-                              delivery_type: str, delivery_address: str | None):
-    """Called when delivery choice is made via a text message (address given)."""
+                              store: dict, delivery_type: str, delivery_address: str | None):
+    lang = _get_lang(message.from_user.id, store)
     product_id = data["product_id"]
     size = data["size"]
 
     p = get_product_by_id(product_id)
     if not p:
-        await message.answer("😔 Товар не найден. Попробуйте ещё раз.")
+        await message.answer(t("order_not_found", lang))
         return
 
     store_info = p.get("bot_stores") or {}
     kaspi_phone = store_info.get("kaspi_phone", "")
     kaspi_pay_url = store_info.get("kaspi_pay_url", "") or None
-    store_name = store_info.get("name", "Магазин")
+    store_name = store_info.get("name", "")
 
     order = create_order(
         buyer_telegram_id=message.from_user.id,
@@ -176,74 +180,85 @@ async def _finalize_order_msg(message: Message, state: FSMContext, data: dict,
 
     text = _build_order_text(p, size, store_name, kaspi_phone, kaspi_pay_url,
                              store_info, message.from_user.id,
-                             delivery_type, delivery_address)
+                             delivery_type, delivery_address, lang)
 
     await state.set_state(OrderState.waiting_screenshot)
     await state.update_data(order_id=order_id)
 
-    await message.answer(text, parse_mode="HTML",
-                         reply_markup=payment_kb(order_id, kaspi_pay_url=kaspi_pay_url))
-
-
-def _build_order_text(p, size, store_name, kaspi_phone, kaspi_pay_url,
-                      store_info, buyer_id, delivery_type, delivery_address):
-    """Build the order summary text including promo and delivery info."""
-    original_price = float(p["price"])
-    final_price = original_price
-    discount_text = ""
-
-    promo = get_unused_promocode(store_info.get("id"), buyer_id)
-    if promo:
-        discount = promo.get("discount_percent", 50)
-        final_price = original_price * (100 - discount) / 100
-        discount_text = f"🎁 <b>Применена скидка {discount}% (Приведи друга)!</b>\n"
-        mark_promocode_used(promo["id"])
-
-    if kaspi_pay_url:
-        payment_text = "💳 Нажмите кнопку ниже — оплата через Kaspi Pay"
-    elif kaspi_phone:
-        payment_text = f"📱 Kaspi: <b>{kaspi_phone}</b> — переведите сумму"
-    else:
-        payment_text = "💳 Уточните реквизиты у магазина"
-
-    delivery_icon = "🚚 Доставка" if delivery_type == "delivery" else "🏪 Самовывоз"
-    delivery_line = f"📦 Способ получения: <b>{delivery_icon}</b>\n"
-    if delivery_address:
-        delivery_line += f"📍 Адрес: <b>{delivery_address}</b>\n"
-
-    return (
-        f"🛒 <b>Ваш заказ оформлен!</b>\n\n"
-        f"🏷 Товар: {p['name']}\n"
-        f"📏 Размер: {size}\n"
-        f"💰 К оплате: <b>{final_price:,.0f} ₸</b> "
-        f"{f'<s>{original_price:,.0f} ₸</s>' if discount_text else ''}\n"
-        f"{discount_text}"
-        f"🏪 Магазин: {store_name}\n"
-        f"{delivery_line}"
-        f"{payment_text}\n\n"
-        f"После оплаты отправьте <b>скриншот подтверждения</b>."
+    await message.answer(
+        text, parse_mode="HTML",
+        reply_markup=payment_kb(order_id, lang=lang, kaspi_pay_url=kaspi_pay_url)
     )
 
 
-# ─── Step 4: Screenshot ──────────────────────────────────────────────────────
+def _build_order_text(p: dict, size: str, store_name: str, kaspi_phone: str,
+                      kaspi_pay_url: str | None, store_info: dict,
+                      buyer_id: int, delivery_type: str,
+                      delivery_address: str | None, lang: str) -> str:
+    price = p.get("price", 0)
+
+    # Promo discount
+    promo = get_unused_promocode(buyer_id, store_info.get("id", ""))
+    discount_line = ""
+    final_price = price
+    if promo:
+        pct = promo.get("discount_percent", 0)
+        final_price = int(price * (1 - pct / 100))
+        discount_line = f"\n{t('discount_applied', lang, pct=pct)}\n"
+        mark_promocode_used(promo["id"])
+
+    delivery_icon = t("order_delivery_label", lang) if delivery_type == "delivery" else t("order_pickup_label", lang)
+    delivery_line = f"\n{t('order_delivery', lang)}: <b>{delivery_icon}</b>"
+    if delivery_address:
+        delivery_line += f"\n{t('order_address', lang)}: <b>{delivery_address}</b>"
+
+    # Payment instructions
+    if kaspi_pay_url:
+        payment_line = ""
+    elif kaspi_phone:
+        payment_line = f"\n\n{t('payment_kaspi_phone', lang, phone=kaspi_phone)}"
+    else:
+        payment_line = f"\n\n{t('payment_ask_shop', lang)}"
+
+    return (
+        f"{t('order_placed', lang)}\n\n"
+        f"{t('order_product', lang)}: <b>{p['name']}</b>\n"
+        f"{t('order_size', lang)}: <b>{size}</b>\n"
+        f"{t('order_store', lang)}: <b>{store_name}</b>"
+        f"{delivery_line}"
+        f"{discount_line}\n"
+        f"{t('order_price', lang)}: <b>{final_price:,.0f} ₸</b>"
+        f"{payment_line}\n\n"
+        f"{t('payment_instructions', lang)}"
+    )
+
+
+# ─── Step 4: Paid → send screenshot ─────────────────────────────────────────
 
 @router.callback_query(F.data.startswith("order:paid:"))
-async def order_paid_button(callback: CallbackQuery, state: FSMContext):
+async def order_paid(callback: CallbackQuery, state: FSMContext, store: dict):
+    lang = _get_lang(callback.from_user.id, store)
+    order_id = callback.data.split(":")[2]
+    await state.set_state(OrderState.waiting_screenshot)
+    await state.update_data(order_id=order_id)
     await callback.message.answer(
-        "📸 Пожалуйста, отправьте <b>скриншот</b> подтверждения оплаты:",
+        t("send_screenshot", lang),
         parse_mode="HTML",
     )
     await callback.answer()
 
 
+# ─── Step 5: Screenshot received ────────────────────────────────────────────
+
 @router.message(OrderState.waiting_screenshot, F.photo)
-async def order_screenshot_received(message: Message, state: FSMContext, bot: Bot):
+async def order_screenshot_received(message: Message, state: FSMContext, bot: Bot, store: dict):
+    lang = _get_lang(message.from_user.id, store)
     data = await state.get_data()
     order_id = data.get("order_id")
     await state.clear()
 
     if not order_id:
-        await message.answer("❌ Заказ не найден. Начните заново.")
+        await message.answer(t("order_not_found", lang))
         return
 
     file_id = message.photo[-1].file_id
@@ -251,10 +266,13 @@ async def order_screenshot_received(message: Message, state: FSMContext, bot: Bo
 
     order = get_order_by_id(order_id)
     if not order:
-        await message.answer("❌ Заказ не найден")
+        await message.answer(t("order_not_found", lang))
         return
 
-    # Notify the shop owner and all admins
+    # Confirm to buyer
+    await message.answer(t("screenshot_received", lang), parse_mode="HTML")
+
+    # Notify shop owner and admins (always in Russian - it's the seller's language)
     try:
         product = order.get("bot_products") or {}
         store_info = (product.get("bot_stores") or {})
@@ -281,9 +299,8 @@ async def order_screenshot_received(message: Message, state: FSMContext, bot: Bo
             buyer_username = message.from_user.username
             buyer_tg = f"@{buyer_username}" if buyer_username else str(message.from_user.id)
 
-            # Fetch saved buyer name
-            from services.buyer_service import get_buyer
-            buyer_record = get_buyer(store_id, message.from_user.id)
+            from services.buyer_service import get_buyer as _get_buyer
+            buyer_record = _get_buyer(store_id, message.from_user.id)
             buyer_name = (buyer_record or {}).get("name", "")
             buyer_info = f"{buyer_name} ({buyer_tg})" if buyer_name else buyer_tg
 
@@ -296,6 +313,7 @@ async def order_screenshot_received(message: Message, state: FSMContext, bot: Bo
                 f"Скриншот оплаты выше 👆"
             )
 
+            is_vip = store_info.get("is_vip", False)
             for admin_id in admins_to_notify:
                 try:
                     await bot.send_photo(
@@ -303,15 +321,61 @@ async def order_screenshot_received(message: Message, state: FSMContext, bot: Bo
                         photo=file_id,
                         caption=caption,
                         parse_mode="HTML",
-                        reply_markup=order_action_kb(order_id, is_vip=store_info.get("is_vip", False)),
+                        reply_markup=order_action_kb(order_id, is_vip=is_vip),
                     )
-                except Exception as inner_e:
-                    print(f"Failed to notify admin {admin_id}: {inner_e}")
+                except Exception as e:
+                    print(f"Failed to notify admin {admin_id}: {e}")
 
     except Exception as e:
-        print(f"Failed to notify shop admins: {e}")
+        print(f"Order notification error: {e}")
 
-    await message.answer(
-        "✅ Ваш скриншот получен! Магазин скоро подтвердит заказ.\n\n"
-        "Мы уведомим вас о статусе."
+
+# ─── Shop confirms / rejects order ──────────────────────────────────────────
+
+@router.callback_query(F.data.startswith("order:confirm:"))
+async def order_confirm(callback: CallbackQuery, bot: Bot):
+    order_id = callback.data.split(":")[2]
+    order = get_order_by_id(order_id)
+    if order:
+        buyer_id = order.get("buyer_telegram_id")
+        product = (order.get("bot_products") or {})
+        try:
+            await bot.send_message(
+                buyer_id,
+                f"✅ <b>Ваш заказ подтверждён!</b>\n\n"
+                f"🏷 Товар: <b>{product.get('name', '—')}</b>\n"
+                f"📏 Размер: <b>{order.get('size', '—')}</b>\n\n"
+                f"Спасибо за покупку! 🎉",
+                parse_mode="HTML",
+            )
+        except Exception:
+            pass
+
+    await callback.message.edit_caption(
+        (callback.message.caption or "") + "\n\n✅ <b>Подтверждено</b>",
+        parse_mode="HTML",
     )
+    await callback.answer("✅ Заказ подтверждён")
+
+
+@router.callback_query(F.data.startswith("order:reject:"))
+async def order_reject(callback: CallbackQuery, bot: Bot):
+    order_id = callback.data.split(":")[2]
+    order = get_order_by_id(order_id)
+    if order:
+        buyer_id = order.get("buyer_telegram_id")
+        try:
+            await bot.send_message(
+                buyer_id,
+                "❌ <b>Ваш заказ отклонён магазином.</b>\n\n"
+                "Если у вас есть вопросы, свяжитесь с магазином напрямую.",
+                parse_mode="HTML",
+            )
+        except Exception:
+            pass
+
+    await callback.message.edit_caption(
+        (callback.message.caption or "") + "\n\n❌ <b>Отклонено</b>",
+        parse_mode="HTML",
+    )
+    await callback.answer("❌ Заказ отклонён")

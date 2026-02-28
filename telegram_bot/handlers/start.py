@@ -1,27 +1,30 @@
 from aiogram import Router, F, Bot
-from aiogram.filters import CommandStart, CommandObject
+from aiogram.filters import CommandStart, CommandObject, Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, CallbackQuery
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from services.buyer_service import register_buyer, get_buyer, save_buyer_name
+from services.buyer_service import register_buyer, get_buyer, save_buyer_name, save_buyer_language
+from locales import t, get_lang
+from keyboards.buyer_kb import language_kb, buyer_cancel_kb
 
 router = Router()
 
 
 class OnboardingState(StatesGroup):
     waiting_name = State()
+    waiting_language = State()
 
 
-def main_menu_kb(is_premium: bool = False, is_vip: bool = False):
+def main_menu_kb(lang: str = "ru", is_premium: bool = False, is_vip: bool = False):
     builder = InlineKeyboardBuilder()
-    builder.button(text="🛍 Каталог", callback_data="catalog:start")
-    builder.button(text="📂 По категориям", callback_data="catalog:categories")
+    builder.button(text=t("btn_catalog", lang), callback_data="catalog:start")
+    builder.button(text=t("btn_categories", lang), callback_data="catalog:categories")
     if is_premium:
-        builder.button(text="✨ AI-Стилист 💎", callback_data="stylist:start")
+        builder.button(text=t("btn_stylist", lang), callback_data="stylist:start")
     if is_vip:
-        builder.button(text="🎁 Получить скидку 50%", callback_data="referral:get_link")
+        builder.button(text=t("btn_referral", lang), callback_data="referral:get_link")
     builder.adjust(2, 1)
     return builder.as_markup()
 
@@ -41,7 +44,6 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext,
         elif payload.startswith("prod_"):
             product_target = payload.split("prod_")[1]
 
-    # Register buyer
     register_buyer(
         store_id=store["id"],
         telegram_id=message.from_user.id,
@@ -49,45 +51,69 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext,
         referred_by=referred_by
     )
 
-    # Check if buyer has a name saved already
     buyer = get_buyer(store["id"], message.from_user.id)
     buyer_name = (buyer or {}).get("name", "")
 
     if not buyer_name:
-        # First time — ask for name
         await state.set_state(OnboardingState.waiting_name)
         await state.update_data(product_target=product_target)
         await message.answer(
-            f"👋 Добро пожаловать в <b>{store['name']}</b>!\n\n"
-            "Прежде чем начать, пожалуйста, напишите своё <b>имя</b> "
-            "(оно будет видно продавцу при оформлении заказа):",
+            t("welcome_new", "ru", store=store["name"]),
             parse_mode="HTML",
         )
         return
 
-    # Buyer has a name — show menu directly
-    await _show_main(message, store, product_target)
+    lang = get_lang(buyer)
+    await _show_main(message, store, lang, product_target)
 
 
 @router.message(OnboardingState.waiting_name, F.text)
 async def onboarding_name_received(message: Message, state: FSMContext, store: dict):
     name = message.text.strip()
     if len(name) < 2:
-        await message.answer("Пожалуйста, введите настоящее имя (минимум 2 символа).")
+        await message.answer(t("name_too_short", "ru"))
         return
 
     data = await state.get_data()
-    product_target = data.get("product_target")
-    await state.clear()
+    await state.set_state(OnboardingState.waiting_language)
+    await state.update_data(name=name, product_target=data.get("product_target"))
 
     save_buyer_name(store["id"], message.from_user.id, name)
 
-    await message.answer(f"✅ Приятно познакомиться, <b>{name}</b>!", parse_mode="HTML")
-    await _show_main(message, store, product_target)
+    await message.answer(
+        t("name_saved", "ru", name=name),
+        parse_mode="HTML",
+        reply_markup=language_kb(),
+    )
 
 
-async def _show_main(message: Message, store: dict, product_target: str = None):
-    """Shows main menu or direct product if product_target is set."""
+@router.callback_query(F.data.startswith("lang:"))
+async def language_selected(callback: CallbackQuery, state: FSMContext, store: dict):
+    lang = callback.data.split(":")[1]  # "ru", "kk", or "en"
+    save_buyer_language(store["id"], callback.from_user.id, lang)
+
+    # Check if in onboarding or just changing language
+    current_state = await state.get_state()
+    product_target = None
+    if current_state == OnboardingState.waiting_language:
+        data = await state.get_data()
+        product_target = data.get("product_target")
+        await state.clear()
+
+    await callback.message.answer(t("language_set", lang), parse_mode="HTML")
+    await _show_main(callback.message, store, lang, product_target)
+    await callback.answer()
+
+
+@router.message(Command("language"))
+async def change_language(message: Message):
+    await message.answer(
+        t("choose_language", "ru"),
+        reply_markup=language_kb(),
+    )
+
+
+async def _show_main(message: Message, store: dict, lang: str, product_target: str = None):
     if product_target:
         from services.supabase_service import get_product_by_id
         from keyboards.buyer_kb import product_detail_kb
@@ -102,13 +128,14 @@ async def _show_main(message: Message, store: dict, product_target: str = None):
                 photo=p["photo_url"],
                 caption=caption,
                 parse_mode="HTML",
-                reply_markup=product_detail_kb(p["id"])
+                reply_markup=product_detail_kb(p["id"], lang=lang)
             )
             return
 
     await message.answer(
-        f"🛍 <b>{store['name']}</b> — что вас интересует?",
+        t("welcome_back", lang, store=store["name"]),
         reply_markup=main_menu_kb(
+            lang=lang,
             is_premium=store.get("is_premium", False),
             is_vip=store.get("is_vip", False)
         ),
@@ -116,31 +143,28 @@ async def _show_main(message: Message, store: dict, product_target: str = None):
     )
 
 
-# Handle referral link generation
 @router.callback_query(F.data == "referral:get_link")
-async def get_referral_link(callback: CallbackQuery, bot: Bot):
+async def get_referral_link(callback: CallbackQuery, bot: Bot, store: dict):
+    buyer = get_buyer(store["id"], callback.from_user.id)
+    lang = get_lang(buyer)
     bot_me = await bot.get_me()
-    bot_username = bot_me.username
-    user_id = callback.from_user.id
-    ref_link = f"t.me/{bot_username}?start=ref_{user_id}"
-
-    from keyboards.buyer_kb import buyer_cancel_kb
+    ref_link = f"t.me/{bot_me.username}?start=ref_{callback.from_user.id}"
     await callback.message.answer(
-        f"🎉 <b>Скидка 50% для вас и ваших друзей!</b>\n\n"
-        f"Отправьте другу (или подруге) эту ссылку:\n<code>{ref_link}</code>\n\n"
-        f"Как только приглашенный вами человек сделает первый заказ, вам автоматически придет персональный промокод на скидку 50%! 🎁",
+        t("referral_text", lang, link=ref_link),
         parse_mode="HTML",
-        reply_markup=buyer_cancel_kb()
+        reply_markup=buyer_cancel_kb(lang)
     )
     await callback.answer()
 
 
-# Handle "Main Menu" nav button from anywhere in the bot
 @router.callback_query(F.data == "nav:main_menu")
 async def go_to_main_menu(callback: CallbackQuery, store: dict):
+    buyer = get_buyer(store["id"], callback.from_user.id)
+    lang = get_lang(buyer)
     await callback.message.answer(
-        f"🏠 <b>Главное меню</b>",
+        t("welcome_back", lang, store=store["name"]),
         reply_markup=main_menu_kb(
+            lang=lang,
             is_premium=store.get("is_premium", False),
             is_vip=store.get("is_vip", False)
         ),

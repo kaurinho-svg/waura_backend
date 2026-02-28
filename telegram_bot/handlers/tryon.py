@@ -6,6 +6,8 @@ from aiogram.types import Message, CallbackQuery
 from keyboards.buyer_kb import product_detail_kb, buyer_cancel_kb
 from services.supabase_service import get_product_by_id
 from services.tryon_service import upload_image_to_backend, do_tryon
+from services.buyer_service import get_buyer
+from locales import t, get_lang
 
 router = Router()
 
@@ -14,35 +16,30 @@ class TryOnState(StatesGroup):
     waiting_user_photo = State()
 
 
-# Store product_id in state data
 @router.callback_query(F.data.startswith("tryon:start:"))
 async def tryon_start(callback: CallbackQuery, state: FSMContext, store: dict):
-    # Check Generation Limits
+    buyer = get_buyer(store["id"], callback.from_user.id)
+    lang = get_lang(buyer)
+
     if store.get("generations_left", 0) <= 0:
-        await callback.answer(
-            "В магазине закончились лимиты на примерки.",
-            show_alert=True
-        )
+        await callback.answer(t("tryon_no_gens", lang), show_alert=True)
         return
 
     product_id = callback.data.split(":")[2]
     p = get_product_by_id(product_id)
     if not p or not p.get("photo_url"):
-        await callback.answer("❌ Нет фото товара для примерки")
+        await callback.answer(t("tryon_no_photo", lang))
         return
 
     await state.set_state(TryOnState.waiting_user_photo)
     await state.update_data(product_id=product_id, clothing_url=p["photo_url"])
 
     await callback.message.answer(
-        "📸 Отправьте ваше <b>фото в полный рост</b> для примерки.\n\n"
-        "💡 <i>Советы для лучшего результата:</i>\n"
-        "• Станьте прямо, руки вдоль тела\n"
-        "• Нейтральный фон\n"
-        "• Хорошее освещение",
+        t("tryon_instructions", lang),
         parse_mode="HTML",
-        reply_markup=buyer_cancel_kb(),
+        reply_markup=buyer_cancel_kb(lang),
     )
+    await callback.answer()
 
 
 @router.message(TryOnState.waiting_user_photo, F.photo)
@@ -53,22 +50,22 @@ async def tryon_process(message: Message, state: FSMContext, bot: Bot, store: di
     product_id = data.get("product_id")
     clothing_url = data.get("clothing_url")
 
-    processing_msg = await message.answer("⏳ Обрабатываю... Это займёт ~30 секунд.")
+    buyer = get_buyer(store["id"], message.from_user.id)
+    lang = get_lang(buyer)
+
+    processing_msg = await message.answer(t("tryon_processing", lang))
 
     try:
-        # Upload user photo
         photo = message.photo[-1]
         file = await bot.get_file(photo.file_id)
         file_bytes = await bot.download_file(file.file_path)
         user_url = await upload_image_to_backend(file_bytes.read())
 
-        # Run try-on (3-tier model: VIP=pro, Premium=nano-banana-2, Basic=standard)
         is_vip = store.get("is_vip", False)
         is_premium = store.get("is_premium", False)
         result_url = await do_tryon(user_image_url=user_url, clothing_image_url=clothing_url,
                                     is_premium=is_premium, is_vip=is_vip)
 
-        # Decrement counter and check thresholds
         current_gens = store.get("generations_left") or 0
         from services.supabase_service import decrement_store_generations, get_store_admins
         decrement_store_generations(store["id"], current_gens)
@@ -81,9 +78,8 @@ async def tryon_process(message: Message, state: FSMContext, bot: Bot, store: di
                     await bot.send_message(
                         adm_id,
                         f"⚠️ <b>Внимание!</b>\n"
-                        f"В магазине <b>{store['name']}</b> заканчиваются лимиты виртуальных примерок.\n\n"
-                        f"Осталось: <b>{new_gens}</b>.\n"
-                        f"Обратитесь к администратору для пополнения баланса.",
+                        f"В магазине <b>{store['name']}</b> заканчиваются лимиты примерок.\n\n"
+                        f"Осталось: <b>{new_gens}</b>.",
                         parse_mode="HTML"
                     )
                 except Exception:
@@ -92,14 +88,14 @@ async def tryon_process(message: Message, state: FSMContext, bot: Bot, store: di
         await processing_msg.delete()
         await message.answer_photo(
             photo=result_url,
-            caption="✨ <b>Вот как это будет выглядеть на вас!</b>\n\nПонравилось? Оформите заказ 👇",
+            caption=t("tryon_result", lang),
             parse_mode="HTML",
-            reply_markup=product_detail_kb(product_id),
+            reply_markup=product_detail_kb(product_id, lang=lang),
         )
     except Exception as e:
         await processing_msg.delete()
         await message.answer(
-            f"😔 Не удалось выполнить примерку. Попробуйте другое фото.\n\n<code>{e}</code>",
+            t("tryon_error", lang),
             parse_mode="HTML",
-            reply_markup=product_detail_kb(product_id),
+            reply_markup=product_detail_kb(product_id, lang=lang),
         )

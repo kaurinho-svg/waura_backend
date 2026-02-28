@@ -2,31 +2,43 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardMarkup
 from typing import Optional
 
+from locales import t
 
-def main_menu_btn(builder: InlineKeyboardBuilder):
+
+def main_menu_btn(builder: InlineKeyboardBuilder, lang: str = "ru"):
     """Adds a 'Main Menu' button to an existing builder."""
-    builder.button(text="🏠 Главное меню", callback_data="nav:main_menu")
+    builder.button(text=t("btn_main_menu", lang), callback_data="nav:main_menu")
 
 
-def buyer_cancel_kb() -> InlineKeyboardMarkup:
-    """Cancel button for buyers — goes to main buyer menu, NOT admin panel."""
+def buyer_cancel_kb(lang: str = "ru") -> InlineKeyboardMarkup:
+    """Cancel button for buyers — goes to main buyer menu."""
     builder = InlineKeyboardBuilder()
-    builder.button(text="🔙 Главное меню", callback_data="nav:main_menu")
+    builder.button(text=t("btn_cancel", lang), callback_data="nav:main_menu")
     return builder.as_markup()
 
 
-def categories_kb(categories: list[str]) -> InlineKeyboardMarkup:
+def language_kb() -> InlineKeyboardMarkup:
+    """Language selection keyboard."""
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🇷🇺 Русский", callback_data="lang:ru")
+    builder.button(text="🇰🇿 Қазақша", callback_data="lang:kk")
+    builder.button(text="🇬🇧 English", callback_data="lang:en")
+    builder.adjust(3)
+    return builder.as_markup()
+
+
+def categories_kb(categories: list[str], lang: str = "ru") -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     for cat in categories:
         builder.button(text=f"🏷 {cat}", callback_data=f"catalog:cat:{cat}")
-    builder.button(text="🛍 Все товары", callback_data="catalog:all")
+    builder.button(text=t("catalog_all_btn", lang), callback_data="catalog:all")
     builder.adjust(2)
-    main_menu_btn(builder)
+    main_menu_btn(builder, lang)
     builder.adjust(2, 2, 1)
     return builder.as_markup()
 
 
-def products_list_kb(products: list, offset: int = 0, limit: int = 5) -> InlineKeyboardMarkup:
+def products_list_kb(products: list, lang: str = "ru", offset: int = 0, limit: int = 5) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     page = products[offset:offset + limit]
     for p in page:
@@ -36,59 +48,56 @@ def products_list_kb(products: list, offset: int = 0, limit: int = 5) -> InlineK
             callback_data=f"catalog:product:{p['id']}"
         )
     if offset > 0:
-        builder.button(text="⬅️ Назад", callback_data=f"catalog:page:{offset - limit}")
+        builder.button(text=t("catalog_prev", lang), callback_data=f"catalog:page:{offset - limit}")
     if offset + limit < len(products):
-        builder.button(text="➡️ Далее", callback_data=f"catalog:page:{offset + limit}")
-    builder.button(text="🔙 К категориям", callback_data="catalog:start")
-    main_menu_btn(builder)
+        builder.button(text=t("catalog_next", lang), callback_data=f"catalog:page:{offset + limit}")
+    builder.button(text=t("catalog_to_categories", lang), callback_data="catalog:start")
+    main_menu_btn(builder, lang)
     builder.adjust(1)
     return builder.as_markup()
 
 
-def product_detail_kb(product_id: str) -> InlineKeyboardMarkup:
+def product_detail_kb(product_id: str, lang: str = "ru") -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.button(text="👗 Примерить", callback_data=f"tryon:start:{product_id}")
-    builder.button(text="🛒 Заказать", callback_data=f"order:start:{product_id}")
-    builder.button(text="🔙 Назад", callback_data="catalog:all")
-    main_menu_btn(builder)
+    builder.button(text=t("btn_tryon", lang), callback_data=f"tryon:start:{product_id}")
+    builder.button(text=t("btn_order", lang), callback_data=f"order:start:{product_id}")
+    builder.button(text=t("btn_back", lang), callback_data="catalog:all")
+    main_menu_btn(builder, lang)
     builder.adjust(2, 1, 1)
     return builder.as_markup()
 
 
-def sizes_kb(sizes: list, product_id: str) -> InlineKeyboardMarkup:
+def sizes_kb(sizes: list, product_id: str, lang: str = "ru") -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     for s in sizes:
         builder.button(
             text=f"{s['size']} (осталось: {s['quantity']})",
             callback_data=f"order:size:{s['id']}"
         )
-    builder.button(text="🔙 Назад к товару", callback_data=f"catalog:product:{product_id}")
-    main_menu_btn(builder)
+    builder.button(text=t("btn_back_to_product", lang), callback_data=f"catalog:product:{product_id}")
+    main_menu_btn(builder, lang)
     builder.adjust(3, 1, 1)
     return builder.as_markup()
 
 
-def delivery_choice_kb() -> InlineKeyboardMarkup:
+def delivery_choice_kb(lang: str = "ru") -> InlineKeyboardMarkup:
     """Keyboard for choosing delivery or pickup."""
     builder = InlineKeyboardBuilder()
-    builder.button(text="🚚 Доставка (укажу адрес)", callback_data="order:delivery:delivery")
-    builder.button(text="🏪 Самовывоз", callback_data="order:delivery:pickup")
-    builder.button(text="🔙 Назад к каталогу", callback_data="catalog:all")
-    main_menu_btn(builder)
+    builder.button(text=t("btn_delivery", lang), callback_data="order:delivery:delivery")
+    builder.button(text=t("btn_pickup", lang), callback_data="order:delivery:pickup")
+    builder.button(text=t("btn_back_to_catalog", lang), callback_data="catalog:all")
+    main_menu_btn(builder, lang)
     builder.adjust(1)
     return builder.as_markup()
 
 
-def payment_kb(order_id: str, kaspi_pay_url: Optional[str] = None) -> InlineKeyboardMarkup:
-    """
-    Payment keyboard shown after order is placed.
-    Shows Kaspi Pay button if URL provided, then screenshot confirmation.
-    """
+def payment_kb(order_id: str, lang: str = "ru", kaspi_pay_url: Optional[str] = None) -> InlineKeyboardMarkup:
+    """Payment keyboard shown after order is placed."""
     builder = InlineKeyboardBuilder()
     if kaspi_pay_url:
-        builder.button(text="💳 Оплатить через Kaspi Pay", url=kaspi_pay_url)
-    builder.button(text="✅ Я оплатил — отправить скрин", callback_data=f"order:paid:{order_id}")
-    builder.button(text="🔙 Назад к каталогу", callback_data="catalog:all")
-    main_menu_btn(builder)
+        builder.button(text=t("payment_kaspi_btn", lang), url=kaspi_pay_url)
+    builder.button(text=t("payment_send_screenshot", lang), callback_data=f"order:paid:{order_id}")
+    builder.button(text=t("btn_back_to_catalog", lang), callback_data="catalog:all")
+    main_menu_btn(builder, lang)
     builder.adjust(1)
     return builder.as_markup()

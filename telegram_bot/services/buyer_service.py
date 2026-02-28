@@ -44,6 +44,14 @@ def save_buyer_name(store_id: str, telegram_id: int, name: str) -> None:
         print(f"save_buyer_name error: {e}")
 
 
+def save_buyer_language(store_id: str, telegram_id: int, language: str) -> None:
+    """Saves buyer's preferred language ('ru', 'kk', 'en') to their bot_buyers record."""
+    try:
+        supabase.from_("bot_buyers").update({"language": language}).eq("store_id", store_id).eq("telegram_id", telegram_id).execute()
+    except Exception as e:
+        print(f"save_buyer_language error: {e}")
+
+
 def get_buyers_for_store(store_id: str) -> list:
     """Returns all buyer telegram IDs for a given store."""
     res = supabase.from_("bot_buyers").select("telegram_id").eq("store_id", store_id).execute()
