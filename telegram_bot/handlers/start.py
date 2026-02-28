@@ -19,11 +19,19 @@ class OnboardingState(StatesGroup):
 
 def main_menu_kb(lang: str = "ru", is_premium: bool = False, is_vip: bool = False,
                  store: dict = None):
-    """Builds the main buyer menu based on per-store feature flags (or tier as fallback)."""
+    """Builds the main buyer menu based on per-store feature flags (or tier as fallback).
+    Flag = None  → fall back to tier logic
+    Flag = True  → always show (regardless of tier)
+    Flag = False → always hide (regardless of tier)
+    """
     s = store or {}
-    # Feature flags override tier logic
-    show_stylist  = s.get("feature_stylist",  is_premium or is_vip)
-    show_referral = s.get("feature_referral", is_vip)
+
+    def _flag(key, tier_default):
+        val = s.get(key)
+        return tier_default if val is None else bool(val)
+
+    show_stylist  = _flag("feature_stylist",  is_premium or is_vip)
+    show_referral = _flag("feature_referral", is_vip)
 
     builder = InlineKeyboardBuilder()
     builder.button(text=t("btn_catalog", lang), callback_data="catalog:start")

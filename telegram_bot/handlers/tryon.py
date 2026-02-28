@@ -21,8 +21,9 @@ async def tryon_start(callback: CallbackQuery, state: FSMContext, store: dict):
     buyer = get_buyer(store["id"], callback.from_user.id)
     lang = get_lang(buyer)
 
-    # Check if try-on is enabled for this store (feature flag or has generations)
-    if not store.get("feature_tryon", True):
+    # Check if try-on is enabled for this store (None = use default True, False = disabled)
+    feature_tryon = store.get("feature_tryon")
+    if feature_tryon is not None and not bool(feature_tryon):
         await callback.answer(t("tryon_no_gens", lang), show_alert=True)
         return
 

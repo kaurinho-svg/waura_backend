@@ -34,8 +34,10 @@ async def broadcast_start(message: Message, state: FSMContext, store: dict):
         await message.answer("⛔️ Только владелец магазина может делать рассылку.")
         return
 
-    # Check feature flag (falls back to is_premium tier if not explicitly set)
-    if not store.get("feature_broadcast", store.get("is_premium")):
+    # Check feature flag (None = fall back to tier, True/False = explicit override)
+    feature_val = store.get("feature_broadcast")
+    tier_allows = store.get("is_premium")
+    if not (tier_allows if feature_val is None else bool(feature_val)):
         await message.answer(
             "💎 <b>Эта функция недоступна для вашего магазина.</b>\n\n"
             "Рассылки об акциях, скидках и новых поступлениях (команда /broadcast) "
