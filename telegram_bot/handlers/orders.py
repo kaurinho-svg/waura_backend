@@ -388,6 +388,11 @@ async def order_screenshot_received(message: Message, state: FSMContext, bot: Bo
 async def order_confirm(callback: CallbackQuery, bot: Bot):
     order_id = callback.data.split(":")[2]
     order = get_order_by_id(order_id)
+
+    # Mark order as confirmed in DB
+    update_order_status(order_id, "confirmed")
+
+    # Notify buyer
     if order:
         buyer_id = order.get("buyer_telegram_id")
         product = (order.get("bot_products") or {})
@@ -403,17 +408,24 @@ async def order_confirm(callback: CallbackQuery, bot: Bot):
         except Exception:
             pass
 
-    await callback.message.edit_caption(
-        (callback.message.caption or "") + "\n\n✅ <b>Подтверждено</b>",
-        parse_mode="HTML",
-    )
-    await callback.answer("✅ Заказ подтверждён")
+    # Remove action buttons and show status (answer() is safer than edit_caption)
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    await callback.answer("✅ Заказ подтверждён", show_alert=True)
+    await callback.message.answer("✅ <b>Заказ подтверждён</b>", parse_mode="HTML")
 
 
 @router.callback_query(F.data.startswith("order:reject:"))
 async def order_reject(callback: CallbackQuery, bot: Bot):
     order_id = callback.data.split(":")[2]
     order = get_order_by_id(order_id)
+
+    # Mark order as rejected in DB
+    update_order_status(order_id, "rejected")
+
+    # Notify buyer
     if order:
         buyer_id = order.get("buyer_telegram_id")
         try:
@@ -426,8 +438,10 @@ async def order_reject(callback: CallbackQuery, bot: Bot):
         except Exception:
             pass
 
-    await callback.message.edit_caption(
-        (callback.message.caption or "") + "\n\n❌ <b>Отклонено</b>",
-        parse_mode="HTML",
-    )
-    await callback.answer("❌ Заказ отклонён")
+    # Remove action buttons
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    await callback.answer("❌ Заказ отклонён", show_alert=True)
+    await callback.message.answer("❌ <b>Заказ отклонён</b>", parse_mode="HTML")
