@@ -150,7 +150,9 @@ async def delete_confirm(callback: CallbackQuery, store: dict):
         await callback.answer("⛔️ Нет доступа", show_alert=True)
         return
     product_id = callback.data.split(":")[2]
-    await callback.message.edit_text("⚠️ Удалить товар?", reply_markup=confirm_delete_kb(product_id))
+    # Use answer() not edit_text() — the message is now a photo card
+    await callback.message.answer("⚠️ Удалить товар?", reply_markup=confirm_delete_kb(product_id))
+    await callback.answer()
 
 
 @router.callback_query(F.data.startswith("shop:confirm_delete:"))
@@ -160,7 +162,8 @@ async def delete_do(callback: CallbackQuery, store: dict):
         return
     product_id = callback.data.split(":")[2]
     delete_product(product_id)
-    await callback.message.edit_text("✅ Товар удалён.", reply_markup=shop_main_menu())
+    await callback.message.answer("✅ Товар удалён.", reply_markup=shop_main_menu())
+    await callback.answer()
 
 
 # ─── Add Product ──────────────────────────────────────────────────────────────
