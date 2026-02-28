@@ -111,11 +111,21 @@ def delivery_choice_kb(lang: str = "ru") -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def payment_kb(order_id: str, lang: str = "ru", kaspi_pay_url: Optional[str] = None) -> InlineKeyboardMarkup:
+def payment_kb(order_id: str, lang: str = "ru", kaspi_pay_url: Optional[str] = None,
+               store: Optional[dict] = None) -> InlineKeyboardMarkup:
     """Payment keyboard shown after order is placed."""
     builder = InlineKeyboardBuilder()
+    s = store or {}
+
     if kaspi_pay_url:
         builder.button(text=t("payment_kaspi_btn", lang), url=kaspi_pay_url)
+
+    # Cash on delivery button — show if store explicitly allows it
+    allow_cash_val = s.get("allow_cash_payment")
+    allow_cash = bool(allow_cash_val) if allow_cash_val is not None else False
+    if allow_cash:
+        builder.button(text="💵 Наличными при получении", callback_data=f"order:cash:{order_id}")
+
     builder.button(text=t("payment_send_screenshot", lang), callback_data=f"order:paid:{order_id}")
     builder.button(text=t("btn_back_to_catalog", lang), callback_data="catalog:all")
     main_menu_btn(builder, lang)

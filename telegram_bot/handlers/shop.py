@@ -413,7 +413,12 @@ async def shop_settings(callback: CallbackQuery, store: dict):
         f"📱 Kaspi номер: <code>{current_phone}</code>\n"
         f"🔗 Kaspi Pay URL: <code>{current_url}</code>",
         parse_mode="HTML",
-        reply_markup=shop_settings_menu(store["id"], is_vip=store.get("is_vip", False)),
+        reply_markup=shop_settings_menu(
+            store["id"],
+            is_vip=store.get("is_vip", False),
+            allow_cash=bool(store.get("allow_cash_payment")),
+            kaspi_phone=store.get("kaspi_phone", ""),
+        ),
     )
     await callback.answer()
 
@@ -467,6 +472,34 @@ async def edit_payment_kaspi_pay(message: Message, state: FSMContext, store: dic
         f"🔗 Kaspi Pay URL: <code>{url or 'не указана'}</code>",
         parse_mode="HTML",
         reply_markup=shop_main_menu(),
+    )
+
+
+@router.callback_query(F.data == "shop:toggle_cash")
+async def toggle_cash(callback: CallbackQuery, store: dict):
+    if not is_owner(callback.from_user.id, store):
+        await callback.answer("⛔️ Нет доступа", show_alert=True)
+        return
+    current = bool(store.get("allow_cash_payment"))
+    new_val = not current
+    update_store(store["id"], {"allow_cash_payment": new_val})
+    status = "включена ✅" if new_val else "выключена ⬜"
+    await callback.answer(f"💵 Наличными при получении: {status}", show_alert=True)
+    # Refresh settings
+    store["allow_cash_payment"] = new_val
+    current_phone = store.get("kaspi_phone") or "не указан"
+    current_url = store.get("kaspi_pay_url") or "не указана"
+    await callback.message.answer(
+        f"⚙️ <b>Настройки магазина {store['name']}</b>\n\n"
+        f"📱 Kaspi номер: <code>{current_phone}</code>\n"
+        f"🔗 Kaspi Pay URL: <code>{current_url}</code>",
+        parse_mode="HTML",
+        reply_markup=shop_settings_menu(
+            store["id"],
+            is_vip=store.get("is_vip", False),
+            allow_cash=new_val,
+            kaspi_phone=store.get("kaspi_phone", ""),
+        ),
     )
 
 

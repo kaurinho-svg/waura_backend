@@ -30,9 +30,16 @@ def shop_product_actions(product_id: str) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def shop_settings_menu(store_id: str, is_vip: bool = False) -> InlineKeyboardMarkup:
+def shop_settings_menu(store_id: str, is_vip: bool = False,
+                       allow_cash: bool = False, kaspi_phone: str = "") -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.button(text="💳 Изменить реквизиты", callback_data="shop:edit_payment")
+    builder.button(text="💳 Изменить реквизиты Kaspi", callback_data="shop:edit_payment")
+    # Cash on delivery toggle
+    cash_icon = "✅" if allow_cash else "⬜"
+    builder.button(text=f"{cash_icon} Наличными при получении", callback_data="shop:toggle_cash")
+    # Kaspi phone transfer toggle (disabled by clearing phone)
+    kaspi_icon = "✅" if kaspi_phone else "⬜"
+    builder.button(text=f"{kaspi_icon} Перевод по номеру Kaspi", callback_data="shop:edit_payment")
     if is_vip:
         builder.button(text="📢 Подключить канал", callback_data="shop:edit_channel")
     builder.button(text="🔙 Назад", callback_data="shop:main")

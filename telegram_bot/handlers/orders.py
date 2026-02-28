@@ -168,7 +168,7 @@ async def _finalize_order(callback: CallbackQuery, state: FSMContext, data: dict
 
         await callback.message.answer(
             text, parse_mode="HTML",
-            reply_markup=payment_kb(order_id, lang=lang, kaspi_pay_url=kaspi_pay_url)
+            reply_markup=payment_kb(order_id, lang=lang, kaspi_pay_url=kaspi_pay_url, store=store)
         )
     except Exception as e:
         print(f"_finalize_order error: {e}")
@@ -229,7 +229,7 @@ async def _finalize_order_msg(message: Message, state: FSMContext, data: dict,
 
         await message.answer(
             text, parse_mode="HTML",
-            reply_markup=payment_kb(order_id, lang=lang, kaspi_pay_url=kaspi_pay_url)
+            reply_markup=payment_kb(order_id, lang=lang, kaspi_pay_url=kaspi_pay_url, store=store)
         )
     except Exception as e:
         print(f"_finalize_order_msg error: {e}")
@@ -288,7 +288,77 @@ def _build_order_text(p: dict, size: str, store_name: str, kaspi_phone: str,
     )
 
 
-# ─── Step 4: Paid → send screenshot ─────────────────────────────────────────
+# ─── Step 4a: Cash on delivery ───────────────────────────────────────────────
+
+@router.callback_query(F.data.startswith("order:cash:"))
+async def order_cash(callback: CallbackQuery, state: FSMContext, bot: Bot, store: dict):
+    lang = _get_lang(callback.from_user.id, store)
+    order_id = callback.data.split(":")[2]
+
+    # Confirm buyer
+    await callback.message.answer(
+        f"✅ <b>Заказ оформлен!</b>\n\n"
+        f"💵 Способ оплаты: <b>Наличными при получении</b>\n\n"
+        f"Ожидайте подтверждения от магазина.",
+        parse_mode="HTML",
+    )
+    await state.clear()
+
+    # Notify shop owner
+    order = get_order_by_id(order_id)
+    if order:
+        try:
+            product = (order.get("bot_products") or {})
+            store_info = (product.get("bot_stores") or {})
+            store_id = store_info.get("id")
+            shop_telegram_id = store_info.get("telegram_id")
+
+            from services.buyer_service import get_buyer as _get_buyer
+            buyer_record = _get_buyer(store_id, callback.from_user.id) if store_id else {}
+            buyer_name = (buyer_record or {}).get("name", "")
+            buyer_username = callback.from_user.username
+            buyer_tg = f"@{buyer_username}" if buyer_username else str(callback.from_user.id)
+            buyer_info = f"{buyer_name} ({buyer_tg})" if buyer_name else buyer_tg
+
+            delivery_type = order.get("delivery_type", "pickup")
+            delivery_address = order.get("delivery_address", "")
+            delivery_icon = "🚚 Доставка" if delivery_type == "delivery" else "🏪 Самовывоз"
+            delivery_line = f"\n📦 Получение: <b>{delivery_icon}</b>"
+            if delivery_address:
+                delivery_line += f"\n📍 Адрес: <b>{delivery_address}</b>"
+
+            caption = (
+                f"🛒 <b>Новый заказ (Наличными)!</b>\n\n"
+                f"🏷 Товар: {product.get('name', '—')}\n"
+                f"📏 Размер: {order.get('size', '—')}\n"
+                f"👤 Покупатель: {buyer_info}"
+                f"{delivery_line}\n\n"
+                f"💵 <b>Оплата наличными при получении</b>"
+            )
+
+            admins = [shop_telegram_id] if shop_telegram_id else []
+            if store_id:
+                admins.extend(get_store_admins(store_id))
+            admins = list(set(admins))
+
+            from keyboards.shop_kb import order_action_kb
+            for admin_id in admins:
+                try:
+                    await bot.send_message(
+                        chat_id=admin_id,
+                        text=caption,
+                        parse_mode="HTML",
+                        reply_markup=order_action_kb(order_id),
+                    )
+                except Exception as e:
+                    print(f"Failed to notify admin {admin_id}: {e}")
+        except Exception as e:
+            print(f"Cash order notification error: {e}")
+
+    await callback.answer()
+
+
+# ─── Step 4b: Paid → send screenshot ─────────────────────────────────────────
 
 @router.callback_query(F.data.startswith("order:paid:"))
 async def order_paid(callback: CallbackQuery, state: FSMContext, store: dict):
