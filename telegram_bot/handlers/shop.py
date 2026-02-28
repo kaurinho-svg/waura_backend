@@ -5,7 +5,7 @@ from aiogram.types import Message, CallbackQuery
 
 from keyboards.shop_kb import (
     shop_main_menu, shop_products_menu, shop_product_actions,
-    cancel_kb, confirm_delete_kb, order_action_kb
+    shop_settings_menu, cancel_kb, confirm_delete_kb, order_action_kb
 )
 from services.supabase_service import (
     get_store_by_telegram_id, update_store,
@@ -397,6 +397,77 @@ async def show_buyer_profile(callback: CallbackQuery, store: dict):
             
     await callback.answer()
     await callback.message.reply(text, parse_mode="HTML")
+
+
+# ─── Settings ─────────────────────────────────────────────────────────────────
+
+@router.callback_query(F.data == "shop:settings")
+async def shop_settings(callback: CallbackQuery, store: dict):
+    if not is_owner(callback.from_user.id, store):
+        await callback.answer("⛔️ Нет доступа", show_alert=True)
+        return
+    current_phone = store.get("kaspi_phone") or "не указан"
+    current_url = store.get("kaspi_pay_url") or "не указана"
+    await callback.message.answer(
+        f"⚙️ <b>Настройки магазина {store['name']}</b>\n\n"
+        f"📱 Kaspi номер: <code>{current_phone}</code>\n"
+        f"🔗 Kaspi Pay URL: <code>{current_url}</code>",
+        parse_mode="HTML",
+        reply_markup=shop_settings_menu(store["id"], is_vip=store.get("is_vip", False)),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "shop:edit_payment")
+async def edit_payment_start(callback: CallbackQuery, state: FSMContext, store: dict):
+    if not is_owner(callback.from_user.id, store):
+        await callback.answer("⛔️ Нет доступа", show_alert=True)
+        return
+    await state.set_state(EditPayment.kaspi)
+    current = store.get("kaspi_phone") or "не указан"
+    await callback.message.answer(
+        f"📱 Введите номер <b>Kaspi</b> для переводов:\n"
+        f"<i>Текущий: {current}</i>\n\n"
+        f"Формат: <code>+7 777 123 45 67</code>\n"
+        f"Или напишите <code>-</code> чтобы очистить.",
+        parse_mode="HTML",
+        reply_markup=cancel_kb(),
+    )
+    await callback.answer()
+
+
+@router.message(EditPayment.kaspi, F.text)
+async def edit_payment_kaspi(message: Message, state: FSMContext, store: dict):
+    phone = message.text.strip()
+    if phone == "-":
+        phone = ""
+    update_store(store["id"], {"kaspi_phone": phone})
+    await state.set_state(EditPayment.kaspi_pay)
+    await message.answer(
+        f"✅ Номер сохранён: <code>{phone or 'очищен'}</code>\n\n"
+        f"🔗 Теперь введите <b>Kaspi Pay ссылку</b> (необязательно):\n"
+        f"<i>Текущая: {store.get('kaspi_pay_url') or 'не указана'}</i>\n\n"
+        f"Формат: <code>https://pay.kaspi.kz/pay/...</code>\n"
+        f"Или напишите <code>-</code> чтобы пропустить.",
+        parse_mode="HTML",
+        reply_markup=cancel_kb(),
+    )
+
+
+@router.message(EditPayment.kaspi_pay, F.text)
+async def edit_payment_kaspi_pay(message: Message, state: FSMContext, store: dict):
+    url = message.text.strip()
+    if url == "-":
+        url = ""
+    update_store(store["id"], {"kaspi_pay_url": url})
+    await state.clear()
+    await message.answer(
+        f"✅ Реквизиты обновлены!\n\n"
+        f"📱 Kaspi номер: <code>{store.get('kaspi_phone') or 'не указан'}</code>\n"
+        f"🔗 Kaspi Pay URL: <code>{url or 'не указана'}</code>",
+        parse_mode="HTML",
+        reply_markup=shop_main_menu(),
+    )
 
 
 @router.callback_query(F.data.startswith("order:confirm:"))
