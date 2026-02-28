@@ -197,15 +197,20 @@ def _build_order_text(p: dict, size: str, store_name: str, kaspi_phone: str,
                       delivery_address: str | None, lang: str) -> str:
     price = p.get("price", 0)
 
-    # Promo discount
-    promo = get_unused_promocode(buyer_id, store_info.get("id", ""))
+    # Promo discount — fix arg order: get_unused_promocode(store_id, telegram_id)
     discount_line = ""
     final_price = price
-    if promo:
-        pct = promo.get("discount_percent", 0)
-        final_price = int(price * (1 - pct / 100))
-        discount_line = f"\n{t('discount_applied', lang, pct=pct)}\n"
-        mark_promocode_used(promo["id"])
+    try:
+        store_id_for_promo = store_info.get("id")
+        if store_id_for_promo:
+            promo = get_unused_promocode(store_id_for_promo, buyer_id)
+            if promo:
+                pct = promo.get("discount_percent", 0)
+                final_price = int(price * (1 - pct / 100))
+                discount_line = f"\n{t('discount_applied', lang, pct=pct)}\n"
+                mark_promocode_used(promo["id"])
+    except Exception as e:
+        print(f"Promo check error (non-fatal): {e}")
 
     delivery_icon = t("order_delivery_label", lang) if delivery_type == "delivery" else t("order_pickup_label", lang)
     delivery_line = f"\n{t('order_delivery', lang)}: <b>{delivery_icon}</b>"
