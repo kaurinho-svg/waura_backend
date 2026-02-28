@@ -480,27 +480,34 @@ async def toggle_cash(callback: CallbackQuery, store: dict):
     if not is_owner(callback.from_user.id, store):
         await callback.answer("⛔️ Нет доступа", show_alert=True)
         return
-    current = bool(store.get("allow_cash_payment"))
-    new_val = not current
-    update_store(store["id"], {"allow_cash_payment": new_val})
-    status = "включена ✅" if new_val else "выключена ⬜"
-    await callback.answer(f"💵 Наличными при получении: {status}", show_alert=True)
-    # Refresh settings
-    store["allow_cash_payment"] = new_val
-    current_phone = store.get("kaspi_phone") or "не указан"
-    current_url = store.get("kaspi_pay_url") or "не указана"
-    await callback.message.answer(
-        f"⚙️ <b>Настройки магазина {store['name']}</b>\n\n"
-        f"📱 Kaspi номер: <code>{current_phone}</code>\n"
-        f"🔗 Kaspi Pay URL: <code>{current_url}</code>",
-        parse_mode="HTML",
-        reply_markup=shop_settings_menu(
-            store["id"],
-            is_vip=store.get("is_vip", False),
-            allow_cash=new_val,
-            kaspi_phone=store.get("kaspi_phone", ""),
-        ),
-    )
+    try:
+        current = bool(store.get("allow_cash_payment"))
+        new_val = not current
+        update_store(store["id"], {"allow_cash_payment": new_val})
+        status = "включена ✅" if new_val else "выключена ⬜"
+        await callback.answer(f"💵 Наличными при получении: {status}", show_alert=True)
+        store["allow_cash_payment"] = new_val
+        current_phone = store.get("kaspi_phone") or "не указан"
+        current_url = store.get("kaspi_pay_url") or "не указана"
+        await callback.message.answer(
+            f"⚙️ <b>Настройки магазина {store['name']}</b>\n\n"
+            f"📱 Kaspi номер: <code>{current_phone}</code>\n"
+            f"🔗 Kaspi Pay URL: <code>{current_url}</code>",
+            parse_mode="HTML",
+            reply_markup=shop_settings_menu(
+                store["id"],
+                is_vip=store.get("is_vip", False),
+                allow_cash=new_val,
+                kaspi_phone=store.get("kaspi_phone", ""),
+            ),
+        )
+    except Exception as e:
+        print(f"toggle_cash error: {e}")
+        await callback.answer(
+            "❌ Ошибка! Возможно не выполнена SQL-миграция:\n"
+            "ALTER TABLE bot_stores ADD COLUMN allow_cash_payment boolean DEFAULT false;",
+            show_alert=True
+        )
 
 
 @router.callback_query(F.data.startswith("order:confirm:"))
