@@ -11,7 +11,7 @@ from services.supabase_service import (
     get_store_by_telegram_id, update_store,
     get_products_by_store, create_product, get_product_by_id,
     delete_product, add_size, get_order_by_id, update_order_status,
-    get_store_recent_orders,
+    get_store_recent_orders, decrement_size_quantity,
 )
 
 router = Router()
@@ -244,7 +244,6 @@ async def add_sizes(message: Message, state: FSMContext, store: dict, bot: Bot):
             if ":" in part:
                 sz, qty = part.strip().split(":", 1)
                 try:
-                    add_size(product["id"], sz.strip(), int(qty.strip()))
                     add_size(product["id"], sz.strip(), int(qty.strip()))
                 except Exception:
                     pass
@@ -560,6 +559,14 @@ async def confirm_order(callback: CallbackQuery, store: dict):
         await callback.answer("Заказ не найден")
         return
     update_order_status(order_id, "confirmed")
+    # Decrement stock for the ordered size
+    try:
+        product_id = order.get("product_id")
+        size = order.get("size", "")
+        if product_id and size:
+            decrement_size_quantity(product_id, size)
+    except Exception as e:
+        print(f"decrement_size_quantity error: {e}")
     # Remove buttons (works for both photo and text messages)
     try:
         await callback.message.edit_reply_markup(reply_markup=None)
