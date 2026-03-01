@@ -48,7 +48,7 @@ class NanoBananaService:
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"upload_to_fal failed: {e}")
 
-    async def edit(self, user_image_url: str, clothing_image_url: str, prompt: str, category: str = None, is_premium: bool = False) -> Dict[str, Any]:
+    async def edit(self, user_image_url: str, clothing_image_url: str, prompt: str, category: str = None, is_premium: bool = False, is_vip: bool = False) -> Dict[str, Any]:
         """
         Virtual Try-On using Nano Banana PRO.
         """
