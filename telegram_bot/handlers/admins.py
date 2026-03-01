@@ -129,12 +129,15 @@ async def list_admins(message: Message, store: dict):
 @router.message(Command("stats"))
 async def show_stats(message: Message, store: dict):
     from config import SUPER_ADMIN_IDS
+    from services.supabase_service import get_store_admins, get_store_analytics
+    
     user_id = message.from_user.id
+    admins = get_store_admins(store["id"])
     
     is_owner = (
         user_id in SUPER_ADMIN_IDS or
         store.get("telegram_id") == user_id or
-        user_id in (store.get("admin_ids") or [])
+        user_id in admins
     )
     
     if not is_owner:
