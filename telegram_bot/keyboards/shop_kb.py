@@ -6,8 +6,9 @@ def shop_main_menu() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text="📦 Мои товары", callback_data="shop:my_products")
     builder.button(text="➕ Добавить товар", callback_data="shop:add_product")
-    builder.button(text="⚙️ Настройки магазина", callback_data="shop:settings")
     builder.button(text="📊 Заказы", callback_data="shop:orders")
+    builder.button(text="📈 Статистика", callback_data="shop:stats")
+    builder.button(text="⚙️ Настройки магазина", callback_data="shop:settings")
     builder.adjust(2)
     return builder.as_markup()
 

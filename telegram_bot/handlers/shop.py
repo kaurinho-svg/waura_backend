@@ -448,6 +448,18 @@ async def shop_orders(callback: CallbackQuery, store: dict):
     )
 
 
+# ─── Statistics ───────────────────────────────────────────────────────────────
+
+@router.callback_query(F.data == "shop:stats")
+async def shop_stats(callback: CallbackQuery, store: dict):
+    from handlers.admins import show_stats
+    if not is_owner(callback.from_user.id, store):
+        await callback.answer("⛔️ Нет доступа", show_alert=True)
+        return
+    await callback.answer()
+    await show_stats(callback.message, store)
+
+
 # ─── Settings ─────────────────────────────────────────────────────────────────
 
 @router.callback_query(F.data == "shop:settings")
