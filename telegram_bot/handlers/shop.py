@@ -239,14 +239,25 @@ async def add_sizes(message: Message, state: FSMContext, store: dict, bot: Bot):
     })
 
     sizes_raw = message.text.strip()
-    if sizes_raw != "-":
+    if sizes_raw == "-":
+        # No size specified — add a universal placeholder so ordering works
+        add_size(product["id"], "Без размера", 9999)
+    else:
         for part in sizes_raw.split(","):
+            part = part.strip()
+            if not part:
+                continue
             if ":" in part:
-                sz, qty = part.strip().split(":", 1)
+                # Format: S:5
+                sz, qty_str = part.split(":", 1)
                 try:
-                    add_size(product["id"], sz.strip(), int(qty.strip()))
-                except Exception:
-                    pass
+                    qty = max(1, int(qty_str.strip()))
+                except ValueError:
+                    qty = 1
+                add_size(product["id"], sz.strip(), qty)
+            else:
+                # Format: S (no quantity → default to 1)
+                add_size(product["id"], part, 1)
 
     # Post to channel if VIP
     channel_id = store.get("channel_id")
