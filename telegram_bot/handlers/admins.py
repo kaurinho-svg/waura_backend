@@ -128,8 +128,16 @@ async def list_admins(message: Message, store: dict):
 
 @router.message(Command("stats"))
 async def show_stats(message: Message, store: dict):
-    from handlers.shop import is_owner
-    if not is_owner(message.from_user.id, store):
+    from config import SUPER_ADMIN_IDS
+    user_id = message.from_user.id
+    
+    is_owner = (
+        user_id in SUPER_ADMIN_IDS or
+        store.get("telegram_id") == user_id or
+        user_id in (store.get("admin_ids") or [])
+    )
+    
+    if not is_owner:
         await message.answer("⛔️ У вас нет доступа к статистике магазина.")
         return
 
