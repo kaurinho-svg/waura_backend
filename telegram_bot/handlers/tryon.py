@@ -27,7 +27,7 @@ async def tryon_start(callback: CallbackQuery, state: FSMContext, store: dict):
         await callback.answer(t("tryon_no_gens", lang), show_alert=True)
         return
 
-    if store.get("generations_left", 0) <= 0:
+    if (store.get("generations_left") or 0) <= 0:
         await callback.answer(t("tryon_no_gens", lang), show_alert=True)
         return
 
@@ -99,6 +99,7 @@ async def tryon_process(message: Message, state: FSMContext, bot: Bot, store: di
             reply_markup=product_detail_kb(product_id, lang=lang),
         )
     except Exception as e:
+        print(f"[tryon_process ERROR] {type(e).__name__}: {e}")
         await processing_msg.delete()
         await message.answer(
             t("tryon_error", lang),
