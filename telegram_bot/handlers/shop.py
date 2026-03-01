@@ -11,7 +11,7 @@ from services.supabase_service import (
     get_store_by_telegram_id, update_store,
     get_products_by_store, create_product, get_product_by_id,
     delete_product, add_size, get_order_by_id, update_order_status,
-    get_store_recent_orders, decrement_size_quantity,
+    get_store_recent_orders, decrement_size_quantity, get_sizes_by_product,
 )
 
 router = Router()
