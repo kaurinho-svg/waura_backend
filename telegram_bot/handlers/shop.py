@@ -91,10 +91,13 @@ async def my_products(callback: CallbackQuery, store: dict):
 
     await callback.message.answer(f"📦 <b>Ваши товары ({len(products)}):</b>", parse_mode="HTML")
     for p in products:
+        sizes = get_sizes_by_product(p['id'])
+        sizes_text = ", ".join(f"{s['size']} ({s['quantity']} шт)" for s in sizes) if sizes else "—"
         caption = (
             f"🏷 <b>{p['name']}</b>\n"
             f"💰 {p['price']:,.0f} ₸\n"
             f"📂 {p.get('category', '—')}\n"
+            f"📏 Размеры: {sizes_text}\n"
             f"{'✅ Активен' if p.get('is_active') else '❌ Скрыт'}"
         )
         if p.get("photo_url"):
@@ -123,10 +126,13 @@ async def product_detail_admin(callback: CallbackQuery, store: dict):
     if not p:
         await callback.answer("Товар не найден")
         return
+    sizes = get_sizes_by_product(product_id)
+    sizes_text = ", ".join(f"{s['size']} ({s['quantity']} шт)" for s in sizes) if sizes else "—"
     caption = (
         f"🏷 <b>{p['name']}</b>\n"
         f"💰 {p['price']:,.0f} ₸\n"
         f"📂 {p.get('category', '—')}\n"
+        f"📏 Размеры: {sizes_text}\n"
         f"{'✅ Активен' if p.get('is_active') else '❌ Скрыт'}"
     )
     if p.get("photo_url"):

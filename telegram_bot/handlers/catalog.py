@@ -31,10 +31,13 @@ async def _send_product_cards(message, products: list, lang: str, offset: int = 
     page = products[offset: offset + PAGE_SIZE]
 
     for p in page:
+        sizes = get_sizes_by_product(p['id'])
+        sizes_text = ", ".join(f"{s['size']} ({s['quantity']} шт)" for s in sizes) if sizes else "—"
         caption = (
             f"🏷 <b>{p['name']}</b>\n"
             f"💰 <b>{p['price']:,.0f} ₸</b>\n"
-            f"📂 {p.get('category', '—')}"
+            f"📂 {p.get('category', '—')}\n"
+            f"📏 Размеры: {sizes_text}"
         )
         if p.get("photo_url"):
             await message.answer_photo(
