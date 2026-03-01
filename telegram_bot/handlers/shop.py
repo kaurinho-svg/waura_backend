@@ -466,7 +466,7 @@ async def shop_stats(callback: CallbackQuery, store: dict):
         await callback.answer("⛔️ Нет доступа", show_alert=True)
         return
     await callback.answer()
-    await show_stats(callback.message, store)
+    await show_stats(callback.message, store, user_id=callback.from_user.id)
 
 
 # ─── Settings ─────────────────────────────────────────────────────────────────
