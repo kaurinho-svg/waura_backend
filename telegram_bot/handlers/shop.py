@@ -42,11 +42,14 @@ class EditChannel(StatesGroup):
 def is_owner(telegram_id: int, store: dict) -> bool:
     """Returns True if the user is the store owner, extra admin, or superadmin."""
     from config import SUPER_ADMIN_IDS
+    from services.supabase_service import get_store_admins
+    
     if telegram_id in SUPER_ADMIN_IDS:
         return True
     if store.get("telegram_id") == telegram_id:
         return True
-    extra_admins = store.get("admin_ids") or []
+        
+    extra_admins = get_store_admins(store["id"])
     return telegram_id in extra_admins
 
 
