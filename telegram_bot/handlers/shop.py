@@ -11,6 +11,7 @@ from services.supabase_service import (
     get_store_by_telegram_id, update_store,
     get_products_by_store, create_product, get_product_by_id,
     delete_product, add_size, get_order_by_id, update_order_status,
+    get_store_recent_orders,
 )
 
 router = Router()
@@ -399,6 +400,44 @@ async def show_buyer_profile(callback: CallbackQuery, store: dict):
     await callback.message.reply(text, parse_mode="HTML")
 
 
+# ─── Shop Orders ──────────────────────────────────────────────────────────────
+
+@router.callback_query(F.data == "shop:orders")
+async def shop_orders(callback: CallbackQuery, store: dict):
+    if not is_owner(callback.from_user.id, store):
+        await callback.answer("⛔️ Нет доступа", show_alert=True)
+        return
+
+    orders = get_store_recent_orders(store["id"], limit=10)
+    await callback.answer()
+
+    if not orders:
+        await callback.message.answer(
+            "📦 <b>Заказы магазина</b>\n\nЗаказов пока нет.",
+            parse_mode="HTML",
+        )
+        return
+
+    STATUS_EMOJI = {"pending": "⏳", "confirmed": "✅", "cancelled": "❌",
+                    "rejected": "❌", "paid": "💳"}
+    lines = ["📦 <b>Последние 10 заказов:</b>\n"]
+    for o in orders:
+        product = (o.get("bot_products") or {})
+        name = product.get("name", "—")
+        size = o.get("size", "—")
+        status = o.get("status", "pending")
+        emoji = STATUS_EMOJI.get(status, "❓")
+        delivery = "🚚" if o.get("delivery_type") == "delivery" else "🏪"
+        short_id = (o.get("id") or "")[:6]
+        lines.append(f"{emoji} <code>#{short_id}</code> {delivery} <b>{name}</b> / {size}")
+
+    await callback.message.answer(
+        "\n".join(lines),
+        parse_mode="HTML",
+        reply_markup=shop_main_menu(),
+    )
+
+
 # ─── Settings ─────────────────────────────────────────────────────────────────
 
 @router.callback_query(F.data == "shop:settings")
@@ -521,9 +560,19 @@ async def confirm_order(callback: CallbackQuery, store: dict):
         await callback.answer("Заказ не найден")
         return
     update_order_status(order_id, "confirmed")
-    await callback.message.edit_text(f"✅ Заказ #{order_id[:8]} подтверждён!")
+    # Remove buttons (works for both photo and text messages)
     try:
-        await callback.bot.send_message(order["buyer_telegram_id"], "🎉 Ваш заказ подтверждён! Ожидайте доставку.")
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    await callback.answer("✅ Заказ подтверждён", show_alert=True)
+    await callback.message.answer("✅ <b>Заказ подтверждён</b>", parse_mode="HTML")
+    try:
+        await callback.bot.send_message(
+            order["buyer_telegram_id"],
+            "🎉 <b>Ваш заказ подтверждён!</b>\n\nОжидайте доставку.",
+            parse_mode="HTML",
+        )
     except Exception:
         pass
 
@@ -563,8 +612,17 @@ async def reject_order(callback: CallbackQuery, store: dict):
         await callback.answer("Заказ не найден")
         return
     update_order_status(order_id, "cancelled")
-    await callback.message.edit_text(f"❌ Заказ #{order_id[:8]} отклонён.")
     try:
-        await callback.bot.send_message(order["buyer_telegram_id"], "😔 Магазин отклонил ваш заказ.")
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    await callback.answer("❌ Заказ отклонён", show_alert=True)
+    await callback.message.answer("❌ <b>Заказ отклонён</b>", parse_mode="HTML")
+    try:
+        await callback.bot.send_message(
+            order["buyer_telegram_id"],
+            "😔 <b>Магазин отклонил ваш заказ.</b>\n\nЕсли есть вопросы — свяжитесь с магазином.",
+            parse_mode="HTML",
+        )
     except Exception:
         pass

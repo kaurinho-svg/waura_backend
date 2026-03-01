@@ -199,6 +199,17 @@ def get_order_by_id(order_id: str) -> Optional[dict]:
     return res.data
 
 
+def get_store_recent_orders(store_id: str, limit: int = 10) -> list:
+    """Returns the most recent orders for a store, newest first."""
+    res = (supabase.from_("bot_orders")
+           .select("id, status, size, created_at, delivery_type, buyer_telegram_id, bot_products(name, store_id)")
+           .eq("bot_products.store_id", store_id)
+           .order("created_at", desc=True)
+           .limit(limit)
+           .execute())
+    return res.data or []
+
+
 # ─── ANALYTICS ────────────────────────────────────────────────────────────────
 
 def get_store_analytics(store_id: str) -> dict:
