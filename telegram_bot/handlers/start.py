@@ -36,11 +36,12 @@ def main_menu_kb(lang: str = "ru", is_premium: bool = False, is_vip: bool = Fals
     builder = InlineKeyboardBuilder()
     builder.button(text=t("btn_catalog", lang), callback_data="catalog:start")
     builder.button(text=t("btn_categories", lang), callback_data="catalog:categories")
+    builder.button(text="👤 Мой профиль", callback_data="profile:start")
     if show_stylist:
         builder.button(text=t("btn_stylist", lang), callback_data="stylist:start")
     if show_referral:
         builder.button(text=t("btn_referral", lang), callback_data="referral:get_link")
-    builder.adjust(2, 1)
+    builder.adjust(2, 1, 2)
     return builder.as_markup()
 
 

@@ -144,6 +144,9 @@ async def product_detail(callback: CallbackQuery, store: dict):
         f"{s['size']} ({s['quantity']} шт)" for s in sizes
     ) if sizes else "—"
 
+    buyer = get_buyer(store["id"], callback.from_user.id)
+    profile_filled = bool(buyer and (buyer.get("height") or buyer.get("top_size") or buyer.get("bottom_size")))
+    
     caption = (
         f"🏷 <b>{p['name']}</b>\n"
         f"💰 {p['price']:,.0f} ₸\n"
@@ -151,25 +154,89 @@ async def product_detail(callback: CallbackQuery, store: dict):
         f"📏 Размеры: {sizes_text}\n\n"
         f"📝 {p.get('description', '')}"
     )
-
+    
+    if not profile_filled:
+        caption += "\n\n<i>💡 Для более точного подбора размера — заполните Мой профиль</i>"
     try:
         if p.get("photo_url"):
             await callback.message.answer_photo(
                 photo=p["photo_url"],
                 caption=caption,
                 parse_mode="HTML",
-                reply_markup=product_detail_kb(product_id, lang=lang),
+                reply_markup=product_detail_kb(product_id, lang=lang, profile_filled=profile_filled),
             )
         else:
             await callback.message.answer(
                 caption,
                 parse_mode="HTML",
-                reply_markup=product_detail_kb(product_id, lang=lang),
+                reply_markup=product_detail_kb(product_id, lang=lang, profile_filled=profile_filled),
             )
     except Exception:
         await callback.message.answer(
             caption,
             parse_mode="HTML",
-            reply_markup=product_detail_kb(product_id, lang=lang),
+            reply_markup=product_detail_kb(product_id, lang=lang, profile_filled=profile_filled),
         )
     await callback.answer()
+
+
+@router.callback_query(F.data.startswith("ai:size:"))
+async def ai_size_recommendation(callback: CallbackQuery, store: dict):
+    lang = _get_lang(callback.from_user.id, store)
+    product_id = callback.data.split(":")[2]
+    
+    buyer = get_buyer(store["id"], callback.from_user.id)
+    p = get_product_by_id(product_id)
+    sizes = get_sizes_by_product(product_id)
+    
+    if not p or not sizes:
+        await callback.answer("❌ Товар или размеры не найдены", show_alert=True)
+        return
+        
+    await callback.answer("⏳ AI анализирует данные...")
+    
+    # Gather data
+    sizes_text = ", ".join(f"{s['size']}" for s in sizes)
+    prompt = f"""
+    Act as a professional fashion stylist and size recommender.
+    The customer is considering buying a product:
+    - Item Name: {p['name']}
+    - Category: {p.get('category', 'Clothing')}
+    - Description: {p.get('description', '')}
+    
+    The available sizes in stock are: {sizes_text}
+    
+    The customer's body measurements are:
+    - Height: {buyer.get('height', 'Unknown')} cm
+    - Weight: {buyer.get('weight', 'Unknown')} kg
+    - Typical Top Size: {buyer.get('top_size', 'Unknown')}
+    - Typical Bottom Size: {buyer.get('bottom_size', 'Unknown')}
+    
+    Based on this data, recommend ONE specific size from the available sizes. 
+    Explain briefly (1-2 sentences) why this size is best for them based on their weight/height.
+    Respond in Russian. Be extremely polite and concise.
+    """
+    
+    try:
+        from google import genai
+        import os
+        client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+        
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+            config=genai.types.GenerateContentConfig(
+                temperature=0.7,
+                max_output_tokens=150
+            )
+        )
+        recommendation = response.text.strip()
+        
+        await callback.message.answer(
+            f"🪄 <b>Рекомендация ИИ-Стилиста:</b>\n\n{recommendation}",
+            parse_mode="HTML"
+        )
+    except Exception as e:
+        import logging
+        logging.error(f"AI Size error: {e}")
+        await callback.message.answer("⚠️ Извините, ИИ сейчас недоступен. Выбирайте размер, ориентируясь на свои обычные предпочтения.")
