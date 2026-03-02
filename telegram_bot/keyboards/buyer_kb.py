@@ -57,13 +57,18 @@ def products_list_kb(products: list, lang: str = "ru", offset: int = 0, limit: i
     return builder.as_markup()
 
 
-def product_card_kb(product_id: str, lang: str = "ru") -> InlineKeyboardMarkup:
+def product_card_kb(product_id: str, lang: str = "ru", profile_filled: bool = False) -> InlineKeyboardMarkup:
     """Compact keyboard shown under each photo card in the catalog listing."""
     builder = InlineKeyboardBuilder()
     builder.button(text=t("btn_tryon", lang), callback_data=f"tryon:start:{product_id}")
     builder.button(text=t("btn_order", lang), callback_data=f"order:start:{product_id}")
+    if profile_filled:
+        builder.button(text="🪄 Подобрать размер (AI)", callback_data=f"ai:size:{product_id}")
     builder.button(text="🔍 Подробнее", callback_data=f"catalog:product:{product_id}")
-    builder.adjust(2, 1)
+    if profile_filled:
+        builder.adjust(2, 1, 1)
+    else:
+        builder.adjust(2, 1)
     return builder.as_markup()
 
 

@@ -26,9 +26,20 @@ def _get_lang(user_id: int, store: dict) -> str:
     return get_lang(buyer)
 
 
-async def _send_product_cards(message, products: list, lang: str, offset: int = 0):
+async def _send_product_cards(message: Message, products: list, lang: str, offset: int = 0, store: dict = None):
     """Sends a page of product photo cards. Each card = photo + caption + buttons."""
     page = products[offset: offset + PAGE_SIZE]
+    
+    buyer = None
+    profile_filled = False
+    
+    # We need the user id to check the profile. 
+    # For callback queries, message is the bot's message. We should ideally pass user_id, 
+    # but since message.chat.id is the user's chat, we can use that.
+    user_id = message.chat.id
+    if store:
+        buyer = get_buyer(store["id"], user_id)
+        profile_filled = bool(buyer and (buyer.get("height") or buyer.get("top_size") or buyer.get("bottom_size")))
 
     for p in page:
         sizes = get_sizes_by_product(p['id'])
@@ -39,18 +50,22 @@ async def _send_product_cards(message, products: list, lang: str, offset: int = 
             f"📂 {p.get('category', '—')}\n"
             f"📏 Размеры: {sizes_text}"
         )
+        
+        if not profile_filled:
+            caption += "\n\n<i>💡 Для более точного подбора размера — заполните Мой профиль</i>"
+            
         if p.get("photo_url"):
             await message.answer_photo(
                 photo=p["photo_url"],
                 caption=caption,
                 parse_mode="HTML",
-                reply_markup=product_card_kb(p["id"], lang=lang),
+                reply_markup=product_card_kb(p["id"], lang=lang, profile_filled=profile_filled),
             )
         else:
             await message.answer(
                 caption,
                 parse_mode="HTML",
-                reply_markup=product_card_kb(p["id"], lang=lang),
+                reply_markup=product_card_kb(p["id"], lang=lang, profile_filled=profile_filled),
             )
 
     # Navigation row at the end
@@ -90,7 +105,7 @@ async def catalog_all(callback: CallbackQuery, store: dict):
         t("catalog_all_title", lang, store=store["name"], count=len(products)),
         parse_mode="HTML",
     )
-    await _send_product_cards(callback.message, products, lang, offset=0)
+    await _send_product_cards(callback.message, products, lang, offset=0, store=store)
     await callback.answer()
 
 
@@ -115,7 +130,7 @@ async def catalog_by_category(callback: CallbackQuery, store: dict):
         f"🏷 <b>{category}</b> — {len(products)}:",
         parse_mode="HTML",
     )
-    await _send_product_cards(callback.message, products, lang, offset=0)
+    await _send_product_cards(callback.message, products, lang, offset=0, store=store)
     await callback.answer()
 
 
@@ -126,7 +141,7 @@ async def catalog_page(callback: CallbackQuery, store: dict):
     key = (callback.from_user.id, store["id"])
     products = _cache.get(key) or get_products_by_store_and_category(store["id"])
     _cache[key] = products
-    await _send_product_cards(callback.message, products, lang, offset=offset)
+    await _send_product_cards(callback.message, products, lang, offset=offset, store=store)
     await callback.answer()
 
 
