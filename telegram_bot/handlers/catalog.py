@@ -233,20 +233,26 @@ async def ai_size_recommendation(callback: CallbackQuery, store: dict):
     """
     
     try:
-        from google import genai
         import os
-        client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+        import httpx
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            raise ValueError("GEMINI_API_KEY is not set.")
+            
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
         
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
-            config=genai.types.GenerateContentConfig(
-                temperature=0.7,
-                max_output_tokens=150
-            )
-        )
-        recommendation = response.text.strip()
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.7, "maxOutputTokens": 200}
+        }
         
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(url, json=payload)
+            response.raise_for_status()
+            
+            data = response.json()
+            recommendation = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+            
         await callback.message.answer(
             f"🪄 <b>Рекомендация ИИ-Стилиста:</b>\n\n{recommendation}",
             parse_mode="HTML"
@@ -254,4 +260,5 @@ async def ai_size_recommendation(callback: CallbackQuery, store: dict):
     except Exception as e:
         import logging
         logging.error(f"AI Size error: {e}")
-        await callback.message.answer("⚠️ Извините, ИИ сейчас недоступен. Выбирайте размер, ориентируясь на свои обычные предпочтения.")
+        error_msg = str(e)
+        await callback.message.answer(f"⚠️ Извините, ИИ сейчас недоступен. ({error_msg}) Выбирайте размер, ориентируясь на свои обычные предпочтения.")
