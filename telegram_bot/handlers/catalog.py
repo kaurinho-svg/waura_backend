@@ -244,7 +244,7 @@ async def ai_size_recommendation(callback: CallbackQuery, store: dict):
         
         payload = {
             "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.7, "maxOutputTokens": 200}
+            "generationConfig": {"temperature": 0.7, "maxOutputTokens": 600}
         }
         
         async with httpx.AsyncClient(timeout=30.0) as client:
