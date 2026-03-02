@@ -545,6 +545,73 @@ async def edit_payment_kaspi_pay(message: Message, state: FSMContext, store: dic
     )
 
 
+@router.callback_query(F.data == "shop:edit_channel")
+async def edit_channel(callback: CallbackQuery, state: FSMContext, store: dict):
+    if not store.get("is_vip"):
+        await callback.answer("👑 Эта функция доступна только для VIP-магазинов!", show_alert=True)
+        return
+    if not is_owner(callback.fromuser.id, store):
+        await callback.answer("⛔️ Нет доступа", show_alert=True)
+        return
+        
+    await state.set_state(EditChannel.channel_id)
+    current = store.get("channel_id") or "не подключен"
+    await callback.message.answer(
+        f"📢 <b>Подключение Telegram-канала</b>\n\n"
+        f"<i>Текущий канал: {current}</i>\n\n"
+        f"Чтобы бот автоматически публиковал новинки в ваш канал:\n"
+        f"1. Добавьте бота в администраторы канала (разрешите публиковать посты).\n"
+        f"2. <b>Перешлите любое сообщение</b> из этого канала сюда.\n\n"
+        f"Или отправьте <code>-</code> чтобы отключить автопостинг.",
+        parse_mode="HTML",
+        reply_markup=cancel_kb(),
+    )
+    await callback.answer()
+
+
+@router.message(EditChannel.channel_id)
+async def process_channel_id(message: Message, state: FSMContext, store: dict, bot: Bot):
+    text = message.text.strip() if message.text else ""
+    
+    if text == "-":
+        update_store(store["id"], {"channel_id": None})
+        await state.clear()
+        await message.answer("✅ Канал отвязан. Автопостинг отключен.", reply_markup=shop_main_menu())
+        return
+
+    # Check if message is forwarded from a channel
+    if not message.forward_origin or message.forward_origin.type != "channel":
+        await message.answer(
+            "❌ Пожалуйста, именно <b>перешлите</b> сообщение из вашего канала (Forward), или отправьте <code>-</code> для отмены.",
+            parse_mode="HTML",
+            reply_markup=cancel_kb()
+        )
+        return
+
+    channel_id = message.forward_origin.chat.id
+    channel_title = message.forward_origin.chat.title
+
+    # Verify if bot is actually an admin in that channel by trying to send a test message, or fetching chat member
+    try:
+        member = await bot.get_chat_member(chat_id=channel_id, user_id=bot.id)
+        if member.status not in ("administrator", "creator"):
+            await message.answer(f"❌ Бот не является администратором в канале <b>{channel_title}</b>. Пожалуйста, выдайте права и повторите попытку.", parse_mode="HTML", reply_markup=cancel_kb())
+            return
+            
+    except Exception as e:
+        await message.answer(f"❌ Не удалось проверить права в канале <b>{channel_title}</b>. Скорее всего бота там нет. Добавьте его в админы и повторите.", parse_mode="HTML", reply_markup=cancel_kb())
+        return
+
+    update_store(store["id"], {"channel_id": str(channel_id)})
+    await state.clear()
+    await message.answer(
+        f"✅ <b>Канал успешно подключен!</b>\n\n"
+        f"Теперь все новые товары будут публиковаться в <b>{channel_title}</b>.",
+        parse_mode="HTML",
+        reply_markup=shop_main_menu()
+    )
+
+
 @router.callback_query(F.data == "shop:toggle_cash")
 async def toggle_cash(callback: CallbackQuery, store: dict):
     if not is_owner(callback.from_user.id, store):
