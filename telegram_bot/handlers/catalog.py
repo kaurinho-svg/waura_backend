@@ -213,23 +213,24 @@ async def ai_size_recommendation(callback: CallbackQuery, store: dict):
     # Gather data
     sizes_text = ", ".join(f"{s['size']}" for s in sizes)
     prompt = f"""
-    Act as a professional fashion stylist and size recommender.
-    The customer is considering buying a product:
-    - Item Name: {p['name']}
-    - Category: {p.get('category', 'Clothing')}
-    - Description: {p.get('description', '')}
+    Ты — профессиональный стилист-консультант. Нужно подобрать идеальный размер для клиента из тех, что в наличии.
     
-    The available sizes in stock are: {sizes_text}
+    Товар: {p['name']}
+    Категория: {p.get('category', 'Одежда')}
+    Описание: {p.get('description', '')}
+    В наличии размеры: {sizes_text}
     
-    The customer's body measurements are:
-    - Height: {buyer.get('height', 'Unknown')} cm
-    - Weight: {buyer.get('weight', 'Unknown')} kg
-    - Typical Top Size: {buyer.get('top_size', 'Unknown')}
-    - Typical Bottom Size: {buyer.get('bottom_size', 'Unknown')}
+    Параметры клиента:
+    - Рост: {buyer.get('height', 'Не указан')} см
+    - Вес: {buyer.get('weight', 'Не указан')} кг
+    - Обычный размер верха: {buyer.get('top_size', 'Не указан')}
+    - Обычный размер низа: {buyer.get('bottom_size', 'Не указан')}
     
-    Based on this data, recommend ONE specific size from the available sizes. 
-    Explain briefly (1-2 sentences) why this size is best for them based on their weight/height.
-    Respond in Russian. Be extremely polite and concise.
+    ИНСТРУКЦИЯ:
+    1. Выбери только ОДИН лучший размер из тех, что в наличии.
+    2. Кратко (1-2 предложения) объясни, почему он подойдет, опираясь на вес и рост.
+    3. Отвечай СРАЗУ по делу, БЕЗ прелюдий и приветствий ("Здравствуйте", "Уважаемый покупатель" — ЗАПРЕЩАЕТСЯ).
+    4. Если данных клиента недостаточно или размеры не подходят, деликатно напиши об этом.
     """
     
     try:
